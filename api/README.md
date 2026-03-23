@@ -1,67 +1,71 @@
 # TaskHost API
 
-TaskHost API ist ein sauber strukturiertes REST-Backend in PHP für eine Wunderlist-inspirierte Aufgabenverwaltung.
-Der Schwerpunkt liegt auf einer tragfähigen Server-Architektur, die Du später mit Web-Frontend, Mobile-App oder weiteren Services verbinden kannst.
+TaskHost API is a structured PHP REST backend for a Wunderlist-inspired task-management application.
+The backend is designed to remain readable, extensible, and suitable as the server-side core for a browser frontend, additional clients, or later service integrations.
 
-## Enthaltene Funktionen
+## Included Features
 
-- Registrierung, Login, Logout, Bearer-Token-Authentifizierung
-- Persönliches Profil (`/me`)
-- Ordner für Listen
-- Listen anlegen, ändern, löschen, archivieren
-- Listen teilen
-  - direkte Freigabe an bestehende Benutzer
-  - Einladungen für E-Mail-Adressen, die noch kein Konto haben
-  - Annahme offener Einladungen
-  - erneuter Versand offener Einladungen
-- Rollen auf Listenebene (`owner`, `editor`, `viewer`)
-- Aufgaben
-  - anlegen, ändern, löschen
-  - verschieben
-  - zuweisen
-  - priorisieren per Stern
-  - Fälligkeit
-  - Wiederholung (`day`, `week`, `month`, `year`)
-  - erledigen / wiederherstellen
-- Unteraufgaben
-- Notizen pro Aufgabe
-- Kommentare pro Aufgabe
-- Erinnerungen pro Benutzer
+- registration, login, logout, bearer-token authentication
+- profile endpoint (`/me`)
+- folders for organizing lists
+- list creation, update, deletion, archiving
+- list sharing
+  - direct sharing with existing users
+  - invitations for email addresses without an account yet
+  - accepting open invitations
+  - resending open invitations
+- list-level roles (`owner`, `editor`, `viewer`)
+- tasks
+  - create, update, delete
+  - move between lists
+  - assign to users
+  - star / unstar
+  - due dates
+  - recurrence (`day`, `week`, `month`, `year`)
+  - complete / restore
+- subtasks
+- task notes
+- task comments
+- user-specific reminders
   - `in_app`, `email`, `both`
-  - Mail-Reminder werden über Queue/Worker ausgeliefert
-- Anhänge mit Upload auf lokales Dateisystem
-- Smarte Ansichten
-  - Heute
-  - Geplant
-  - Wichtig
-  - Mir zugewiesen
-  - Erledigt
-- Suche über erreichbare Aufgaben
-- Asynchrone Infrastruktur
-  - Mail-Outbox
-  - Queue-Jobs
-  - Worker-CLI
-  - Retry mit Backoff
-  - File-Mailer für sichere lokale Entwicklung
-  - Native-Mailer via PHP `mail()` für einfache Server-Setups
+  - mail reminders delivered through queue/worker processing
+- attachments stored on the local filesystem
+- smart views
+  - Today
+  - Planned
+  - Important
+  - Assigned to me
+  - Completed
+- search across accessible tasks
+- asynchronous infrastructure
+  - mail outbox
+  - queue jobs
+  - worker CLI
+  - retry with backoff
+  - file mailer for safe local development
+  - native mailer via PHP `mail()` for simple server setups
+- installer/bootstrap helper
+- first PHPUnit unit tests for selected core classes
 
-## Was bewusst noch nicht enthalten ist
+## Intentional Gaps
 
-Dieses Backend deckt jetzt neben dem fachlichen Kern auch Mail-Queue und Reminder-Auslieferung ab. Für vollständige 1:1-Parität mit dem historischen Wunderlist-Produkt fehlen weiterhin einige Themen, die besser als eigener Ausbauschritt kommen sollten:
+This backend already covers the functional core plus mail queue and reminder delivery. For full product maturity, some topics remain separate future steps:
 
-- Push-Benachrichtigungen
-- Konfliktauflösung für Offline-Sync
-- Activity Feed / Audit Trail pro Änderung
-- Export/Import im Wunderlist- oder Microsoft-To-Do-Format
+- push notifications
+- offline sync conflict resolution
+- activity feed / audit trail
+- export/import
 - OAuth / SSO
-- Rate Limiting
+- rate limiting
+- broader automated test coverage
 
-## Projektstruktur
+## Project Structure
 
 ```text
 public/
   index.php
 bin/
+  install.php
   migrate.php
   seed.php
   worker.php
@@ -71,6 +75,9 @@ migrations/
   010_mysql_full_schema_and_views.sql
   020_sqlite_async_mail_and_queue.sql
   020_mysql_async_mail_and_queue.sql
+tests/
+  bootstrap.php
+  Unit/
 src/
   Bootstrap.php
   Application.php
@@ -85,58 +92,93 @@ storage/
   mail/
 ```
 
-## Starten
+## Getting Started
 
-### 1. Konfiguration
+### 1. Install dependencies
+
+```bash
+composer install
+```
+
+### 2. Configuration
 
 ```bash
 cp .env.example .env
 ```
 
-Für einen sicheren ersten lokalen Start bleibt `MAIL_TRANSPORT=file`. Dann werden E-Mails als `.eml`-Dateien unter `storage/mail/` abgelegt, statt sie sofort nach außen zu versenden.
+The default `.env.example` uses a local SQLite database under `storage/taskhost.sqlite` and keeps `MAIL_TRANSPORT=file` for a safe first start.
 
-### 2. Umfeld prüfen
-
-```bash
-php bin/doctor.php
-```
-
-### 3. Datenbank initialisieren
+### 3. Installer
 
 ```bash
-php bin/migrate.php
-php bin/seed.php
+php bin/install.php --migrate
 ```
 
-Hinweis: `php bin/migrate.php` führt das aktuelle Full-Schema aus. Das Legacy-Upgrade-Skript `020_*` ist nur für ältere Datenbanken gedacht und kann bei Bedarf manuell mit `--legacy-upgrade` ergänzt werden.
+Optional demo data:
 
-### 4. Entwicklungsserver starten
+```bash
+php bin/install.php --migrate --seed
+```
+
+Useful installer options:
+
+```bash
+php bin/install.php --help
+php bin/install.php --force-copy-env
+php bin/install.php --skip-doctor
+```
+
+### 4. Start the development server
 
 ```bash
 php -S 127.0.0.1:8080 -t public
 ```
 
-### 5. Reminder-Queue und Mail-Queue verarbeiten
+### 5. Process reminders and mail queue
 
-Einmalige Ausführung:
+One-off processing:
 
 ```bash
 php bin/worker.php reminders:enqueue --limit=100
 php bin/worker.php queue:drain --queue=mail --limit=50
 ```
 
-Dauerbetrieb als Worker:
+Long-running worker:
 
 ```bash
 php bin/worker.php queue:work --queue=mail --limit=50 --sleep=10
 ```
 
-## Demo-Zugang nach `seed.php`
+## Testing
 
-- E-Mail: `alice@example.com`
-- Passwort: `ChangeMe123!`
+The repository now includes a first PHPUnit unit-test suite.
 
-## Wichtige Endpunkte
+Run all unit tests:
+
+```bash
+composer test
+```
+
+Run PHPUnit directly:
+
+```bash
+vendor/bin/phpunit --configuration phpunit.xml
+```
+
+Current focus:
+- `PasswordHasher`
+- `TokenService`
+- `DateTimeHelper`
+- `MailTemplateService`
+
+These tests intentionally target stable core behavior first, before broader repository and API flow tests are added.
+
+## Demo Access after `seed.php`
+
+- email: `alice@example.com`
+- password: `ChangeMe123!`
+
+## Important Endpoints
 
 ### Auth
 
@@ -145,14 +187,14 @@ php bin/worker.php queue:work --queue=mail --limit=50 --sleep=10
 - `POST /api/v1/auth/logout`
 - `GET /api/v1/me`
 
-### Ordner
+### Folders
 
 - `GET /api/v1/folders`
 - `POST /api/v1/folders`
 - `PATCH /api/v1/folders/{id}`
 - `DELETE /api/v1/folders/{id}`
 
-### Listen
+### Lists
 
 - `GET /api/v1/lists`
 - `POST /api/v1/lists`
@@ -166,7 +208,7 @@ php bin/worker.php queue:work --queue=mail --limit=50 --sleep=10
 - `DELETE /api/v1/lists/{id}/members/{userId}`
 - `POST /api/v1/invitations/{token}/accept`
 
-### Aufgaben
+### Tasks
 
 - `GET /api/v1/lists/{id}/tasks`
 - `POST /api/v1/lists/{id}/tasks`
@@ -176,85 +218,43 @@ php bin/worker.php queue:work --queue=mail --limit=50 --sleep=10
 - `POST /api/v1/tasks/{id}/complete`
 - `POST /api/v1/tasks/{id}/restore`
 
-### Unteraufgaben
+### Subtasks
 
 - `GET /api/v1/tasks/{id}/subtasks`
 - `POST /api/v1/tasks/{id}/subtasks`
 - `PATCH /api/v1/subtasks/{id}`
 - `DELETE /api/v1/subtasks/{id}`
 
-### Notizen
+### Notes
 
 - `GET /api/v1/tasks/{id}/note`
 - `PUT /api/v1/tasks/{id}/note`
 
-### Kommentare
+### Comments
 
 - `GET /api/v1/tasks/{id}/comments`
 - `POST /api/v1/tasks/{id}/comments`
 - `DELETE /api/v1/comments/{id}`
 
-### Erinnerungen
+### Reminders
 
 - `GET /api/v1/tasks/{id}/reminders`
 - `POST /api/v1/tasks/{id}/reminders`
 - `PATCH /api/v1/reminders/{id}`
 - `DELETE /api/v1/reminders/{id}`
 
-### Anhänge
+### Attachments
 
 - `GET /api/v1/tasks/{id}/attachments`
 - `POST /api/v1/tasks/{id}/attachments`
 - `GET /api/v1/attachments/{id}/download`
 - `DELETE /api/v1/attachments/{id}`
 
-### Smarte Ansichten & Suche
+### Smart Views and Search
 
 - `GET /api/v1/views/today`
 - `GET /api/v1/views/planned`
 - `GET /api/v1/views/starred`
 - `GET /api/v1/views/assigned`
 - `GET /api/v1/views/completed`
-- `GET /api/v1/search?q=bericht`
-
-## Beispiele
-
-### Login
-
-```bash
-curl -X POST http://127.0.0.1:8080/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"alice@example.com","password":"ChangeMe123!"}'
-```
-
-### Liste teilen und Einladungsmail in die Queue stellen
-
-```bash
-curl -X POST http://127.0.0.1:8080/api/v1/lists/1/share \
-  -H "Authorization: Bearer DEIN_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email":"bob@example.com",
-    "role":"editor",
-    "notify":true
-  }'
-```
-
-### Mail-Reminder anlegen
-
-```bash
-curl -X POST http://127.0.0.1:8080/api/v1/tasks/1/reminders \
-  -H "Authorization: Bearer DEIN_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "remind_at":"2026-03-24T08:30:00+01:00",
-    "channel":"email"
-  }'
-```
-
-### Fällige Reminder einsammeln und Mail-Jobs abarbeiten
-
-```bash
-php bin/worker.php reminders:enqueue --limit=100
-php bin/worker.php queue:drain --queue=mail --limit=50
-```
+- `GET /api/v1/search?q=report`

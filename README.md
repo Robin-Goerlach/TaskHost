@@ -1,166 +1,250 @@
-# TaskHost API
+# TaskHost
 
-> PHP REST API for task, list, and project management inspired by the simplicity of Task Host.
-> JavaScript frontend 
+TaskHost is a task, list, and project management application with a **PHP REST API backend** and a **modular JavaScript frontend**.
 
-![TaskHost interface with task details](docs/images/taskHost.png)
+The repository is intentionally structured with separate **`api/`** and **`app/`** directories. This keeps backend and frontend concerns cleanly separated while still allowing both parts to evolve together in one repository.
 
-TaskHost API is the backend foundation of **TaskHost**, a productivity application for managing tasks, lists, and related workflows in a clean and structured way. The project is designed as a maintainable PHP service with a clear separation between HTTP handling, business logic, security, and persistence.
+![TaskHost interface](docs/images/taskHost.png)
 
-This README is intended as the **main GitHub entry page** for the repository. More detailed language-specific documentation can live in the `docs/` directory.
+## Current Status
 
-## Documentation
+TaskHost is in an **early but already usable development stage**.
 
-- German documentation: `docs/README.DE.md`
-- English documentation: `docs/README.EN.md`
+The repository currently contains:
+- a PHP REST API for authentication, folders, lists, tasks, subtasks, notes, comments, reminders, attachments, invitations, and smart views
+- a JavaScript frontend with list, task, share, reminder, and search flows
+- SQL migrations for MySQL and SQLite
+- asynchronous mail outbox and queue infrastructure
+- worker commands for reminder and mail processing
+- a small installer/bootstrap script for easier local setup
+- a first PHPUnit unit-test suite for core backend classes
 
-## Project Overview
+This is **not yet a final production release**, but it already provides a solid architectural and functional base.
 
-TaskHost API aims to provide a solid backend for a modern task management application. The focus is on a clean REST-oriented architecture, understandable code structure, and a robust foundation for future extensions.
-
-The current documented code state is the version **0.01.00**. That means the project currently focuses on the application core and not yet on asynchronous mail processing or worker-based background jobs.
-
-## Core Goals
-
-The project is built around a few clear goals:
-
-- provide a reliable backend for task and list management
-- keep the architecture understandable and maintainable
-- separate transport, domain, and persistence concerns clearly
-- make future extensions possible without overengineering the first versions
-- prefer a small and robust implementation over a bloated early feature set
-
-## Current Scope
-
-At this stage, the project is centered on the application core. Depending on the exact branch or implementation progress, the codebase is intended to cover the following areas:
-
-- user-related API functionality such as registration, login, or profile access
-- creation and management of lists, projects, or task containers
-- creation, reading, updating, and deletion of tasks
-- task state changes such as open, done, or archived
-- JSON-based request and response handling
-- validation and structured error handling
-- a backend structure prepared for future growth
-
-## Key Features
-
-### REST-oriented API design
-
-The service is intended to expose a clean JSON API with predictable routes, meaningful HTTP status codes, and clearly structured request and response payloads.
-
-### Clean backend architecture
-
-TaskHost API follows the idea of separating responsibilities cleanly. A typical structure includes controllers, services, repositories, security components, and infrastructure code.
-
-### Extensible foundation
-
-The project is designed so that future additions such as notifications, collaboration features, labels, reminders, queue-based jobs, or more advanced security features can be added without having to redesign the entire backend.
-
-### Focus on maintainability
-
-The codebase is meant to stay understandable over time. Clear naming, consistent structure, and limited early complexity are part of the intended design philosophy.
-
-## Not Included in This Code State
-
-This documented repository state is explicitly the one **without a mail queue**. In particular, the following items are not part of this stage:
-
-- asynchronous mail processing
-- dedicated queue workers
-- retry handling for mail delivery
-- dead-letter processing
-- background job subsystems for email workflows
-
-These features can be introduced in a later development phase.
-
-## Technology Direction
-
-The exact implementation details may evolve, but the project is generally aligned with the following stack and concepts:
-
-- PHP 8.2+
-- Composer
-- MySQL or MariaDB
-- JSON over HTTP
-- central API entry point
-- environment-based configuration
-- modular backend structure for controllers, services, repositories, and security
-
-## Suggested Project Structure
+## Repository Structure
 
 ```text
 .
+├── api/
+│   ├── bin/
+│   ├── docs/
+│   ├── migrations/
+│   ├── public/
+│   ├── src/
+│   ├── storage/
+│   ├── tests/
+│   ├── .env.example
+│   ├── composer.json
+│   ├── phpunit.xml
+│   └── README.md
+├── app/
+│   ├── assets/
+│   ├── docs/
+│   ├── src/
+│   ├── index.html
+│   ├── package.json
+│   └── README.md
 ├── docs/
+│   ├── images/
 │   ├── README.DE.md
 │   └── README.EN.md
-├── public/
-│   └── index.php
-├── src/
-│   ├── Controller/
-│   ├── Service/
-│   ├── Repository/
-│   ├── Security/
-│   ├── Http/
-│   └── Infrastructure/
-├── tests/
-├── composer.json
-├── LICENSE
 └── README.md
 ```
 
+## Architecture Overview
+
+### Backend (`api/`)
+The backend is implemented as a layered PHP REST API.
+
+Main backend areas:
+- `Controller/` for HTTP endpoint handling
+- `Service/` for business logic
+- `Repository/` for persistence logic
+- `Security/` for authentication and token handling
+- `Infrastructure/` for configuration, database, and mail concerns
+- `bin/` for CLI tools such as install, doctor, migrate, seed, and worker commands
+
+### Frontend (`app/`)
+The frontend is a modular JavaScript application without a mandatory build step.
+
+Main frontend areas:
+- `src/app.js` for application orchestration
+- `src/api/` for backend communication
+- `src/ui/` for rendering and templates
+- `src/utils/` for helpers such as date formatting
+- `assets/` for styling and static assets
+
+The separation between `api/` and `app/` is deliberate and should remain in place.
+
+## Core Features
+
+### Backend Features
+- user registration, login, logout, and bearer-token authentication
+- folders and task lists
+- task creation, update, completion, starring, movement, and assignment
+- subtasks
+- notes and comments
+- user-specific reminders
+- attachments
+- list sharing and invitations
+- invitation resend flow
+- smart views such as Today, Planned, Important, Assigned, and Completed
+- SQL views for easier reporting and access queries
+- async mail outbox and queue jobs
+
+### Frontend Features
+- authentication UI
+- smart views
+- folder and list management
+- task detail panel
+- subtasks, notes, comments, reminders, and attachments
+- invitation handling and invitation resend
+- async-aware reminder and mail feedback
+- search
+
+## Async Mail and Queue
+
+TaskHost includes a first asynchronous processing layer for invitation mails and reminder delivery.
+
+Included components:
+- mail outbox storage
+- queue job storage
+- worker commands
+- resend flow for invitations
+- reminder enqueueing
+- safe default mail transport for development
+
+This allows mail-related operations to be handled more robustly than direct synchronous delivery inside HTTP requests.
+
+## Installer
+
+The backend includes a small installer/bootstrap script:
+
+```bash
+cd api
+php bin/install.php
+```
+
+What it does:
+- creates required storage directories
+- optionally copies `.env.example` to `.env` if `.env` is missing
+- validates core configuration values
+- can run `doctor`, migrations, and seeding
+- prints the next useful commands for local startup
+
+Useful options:
+
+```bash
+php bin/install.php --help
+php bin/install.php --migrate
+php bin/install.php --migrate --seed
+php bin/install.php --force-copy-env
+```
+
+The installer should be seen as a **local bootstrap helper**, not as a full deployment system.
+
+## Testing
+
+The repository now includes a first PHPUnit unit-test suite in `api/tests/`.
+
+Current test focus:
+- `PasswordHasher`
+- `TokenService`
+- `DateTimeHelper`
+- `MailTemplateService`
+
+Run the tests with:
+
+```bash
+cd api
+composer install
+composer test
+```
+
+Or directly:
+
+```bash
+vendor/bin/phpunit --configuration phpunit.xml
+```
+
+These tests are intentionally small and stable. They are meant to secure core helper and service behavior before broader integration and end-to-end tests are added.
+
 ## Getting Started
 
-### Clone the repository
+### Backend
 
 ```bash
-git clone git@github.com:Robin-Goerlach/TaskHost.git
-cd TaskHost
-```
-
-### Install dependencies
-
-```bash
+cd api
 composer install
+cp .env.example .env
+php bin/install.php --migrate
+php -S 127.0.0.1:8080 -t public
 ```
 
-### Configure the application
-
-If the project uses environment-based configuration, create a local configuration file:
+Optional development data:
 
 ```bash
-cp .env.example .env
+php bin/seed.php
 ```
 
-Then adjust the application and database settings to your local environment.
+### Frontend
 
-### Run the project
+Open a second terminal:
 
-The exact startup method depends on your current project structure and local web server setup. In a typical PHP setup, requests are routed through the main entry point such as `public/index.php`.
+```bash
+cd app
+python3 -m http.server 4173
+```
 
-## API Philosophy
+Then open:
+- frontend: `http://127.0.0.1:4173`
+- backend: `http://127.0.0.1:8080`
 
-TaskHost API is intended to provide:
+By default, the frontend points to `http://127.0.0.1:8080/api/v1` for local development.
 
-- JSON requests and responses
-- meaningful HTTP status codes
-- server-side validation
-- clear separation between technical and business errors
-- a secure basis for authentication and persistence logic
+## Worker Commands
 
-## Roadmap Direction
+Examples:
 
-Possible future expansion areas include:
+```bash
+cd api
+php bin/worker.php reminders:enqueue --limit=100
+php bin/worker.php queue:drain --queue=mail --limit=50
+php bin/worker.php queue:work --queue=mail --limit=50 --sleep=10
+```
 
-- mail handling and queue integration
-- reminders and notifications
-- collaboration and sharing features
-- comments, labels, and priorities
-- improved testing coverage
-- OpenAPI or Swagger documentation
-- better logging and monitoring
+These commands are especially relevant for reminder mails and invitation delivery.
 
-## License
+## Recommended Next Steps
 
-This repository uses the **Apache License 2.0**. See the `LICENSE` file for details.
+Recommended next steps for the repository:
+- expand backend unit tests
+- add backend integration tests for repositories and selected API flows
+- add frontend smoke tests
+- improve deployment documentation
+- add export/import
+- add push notifications
+- improve offline/sync strategy
+- introduce OpenAPI or API reference documentation
 
-## Status Note
+## Why `app/` and `api/` stay separate
 
-This README intentionally describes a **core-focused backend state**. It is meant to present the project clearly on GitHub while the more detailed German and English documentation can be maintained separately in `docs/`.
+TaskHost deliberately keeps frontend and backend in separate directories.
+
+Reasons:
+- clearer responsibilities
+- easier maintenance
+- better test separation
+- easier future deployment flexibility
+- less accidental coupling between UI and backend internals
+
+This is an intended architectural choice, not an unfinished intermediate state.
+
+## Documentation
+
+Additional documentation is available in:
+- `docs/README.DE.md`
+- `docs/README.EN.md`
+- `api/docs/`
+- `app/docs/`
+

@@ -35,6 +35,7 @@ Thumbs.db
 
 # Frontend env files
 /app/.env
+/app/.env.IONOS
 /app/.env.local
 /app/.env.development.local
 /app/.env.test.local
