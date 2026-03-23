@@ -3,7 +3,7 @@
 > PHP REST API for task, list, and project management inspired by the simplicity of Task Host.
 > JavaScript frontend 
 
-![TaskHost interface with task details.png](docu/images/taskhost.png)
+![TaskHost interface with task details.png](docs/images/taskhost.png)
 
 TaskHost API is the backend foundation of **TaskHost**, a productivity application for managing tasks, lists, and related workflows in a clean and structured way. The project is designed as a maintainable PHP service with a clear separation between HTTP handling, business logic, security, and persistence.
 

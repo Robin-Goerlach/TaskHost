@@ -20,6 +20,8 @@ Das Frontend bildet die fachlichen Kernfunktionen der Anwendung ab:
 - Listen teilen
   - Mitglieder anzeigen
   - Einladungen erzeugen
+  - offene Einladungen erneut senden
+  - Einladungslink kopieren
   - Mitglieder entfernen
 - Aufgaben anlegen, bearbeiten, löschen
 - Aufgaben als wichtig markieren
@@ -30,6 +32,7 @@ Das Frontend bildet die fachlichen Kernfunktionen der Anwendung ab:
 - Notizen pflegen
 - Kommentare anlegen und löschen
 - Erinnerungen anlegen, bearbeiten, löschen
+- benutzerbezogene Reminder mit Kanalwahl `in_app`, `email`, `both`
 - Anhänge hochladen, herunterladen, löschen
 - Suche über erreichbare Aufgaben
 
@@ -111,6 +114,8 @@ http://127.0.0.1:4173
 
 Das Frontend nutzt Bearer Tokens aus dem Backend und speichert sie lokal im Browser.
 Anhänge werden per `FormData` hochgeladen und für Downloads per Blob verarbeitet, damit auch mit Bearer-Authentifizierung sauber geladen werden kann.
+
+Einladungen und Mail-Reminder werden gegenüber dem Benutzer bewusst als **asynchron eingeplant** dargestellt. Die UI behauptet also nicht, dass eine E-Mail bereits zugestellt wurde, wenn serverseitig zunächst nur ein Queue-/Outbox-Eintrag erzeugt wurde.
 
 ## Bewusste Grenzen dieser Fassung
 
