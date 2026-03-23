@@ -1,0 +1,10 @@
+{
+  "name": "taskhost-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "serve": "python3 -m http.server 4173",
+    "check": "node --check src/main.js && node --check src/app.js && node --check src/api/client.js && node --check src/api/taskhost-api.js && node --check src/ui/templates.js && node --check src/utils/date.js"
+  }
+}

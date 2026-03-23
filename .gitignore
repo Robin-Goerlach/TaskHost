@@ -1,0 +1,95 @@
+# ============================================================
+# TaskHost / Wunderlist API monorepo-style .gitignore
+# Structure:
+#   /app   -> frontend
+#   /api   -> PHP backend
+# ============================================================
+
+# ------------------------------------------------------------
+# OS / editor noise
+# ------------------------------------------------------------
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# ------------------------------------------------------------
+# Frontend (app) - Node / Vite / React
+# ------------------------------------------------------------
+/app/node_modules/
+/app/dist/
+/app/build/
+/app/.cache/
+/app/.parcel-cache/
+/app/.vite/
+/app/coverage/
+/app/.eslintcache
+/app/*.log
+/app/npm-debug.log*
+/app/yarn-debug.log*
+/app/yarn-error.log*
+/app/pnpm-debug.log*
+
+# Frontend env files
+/app/.env
+/app/.env.local
+/app/.env.development.local
+/app/.env.test.local
+/app/.env.production.local
+
+# ------------------------------------------------------------
+# Backend (api) - PHP / Composer
+# ------------------------------------------------------------
+/api/vendor/
+/api/.phpunit.result.cache
+/api/.php-cs-fixer.cache
+/api/.phpstan.cache
+/api/.psalm-cache/
+/api/coverage/
+/api/build/
+/api/*.log
+
+# Backend env / secrets
+/api/.env
+/api/.env.local
+/api/.env.*.local
+/api/config/local.php
+/api/config/local/*.php
+
+# Runtime / cache / temp / uploads
+/api/var/cache/
+/api/var/log/
+/api/var/tmp/
+/api/var/sessions/
+/api/storage/cache/
+/api/storage/logs/
+/api/storage/tmp/
+/api/public/uploads/
+/api/uploads/
+/api/storage/uploads/*
+ !api/storage/uploads/.gitkeep
+
+# ------------------------------------------------------------
+# Test outputs / reports (generic)
+# ------------------------------------------------------------
+coverage/
+.coverage/
+reports/
+
+# ------------------------------------------------------------
+# Archives / dumps
+# ------------------------------------------------------------
+*.zip
+*.tar
+*.tar.gz
+*.sql
+*.sqlite
+*.sqlite3
+
+# ------------------------------------------------------------
+# Keep lock files in version control for reproducible builds
+# (therefore package-lock.json / composer.lock are NOT ignored)
+# ------------------------------------------------------------

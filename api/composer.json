@@ -1,0 +1,13 @@
+{
+  "name": "sasd/taskhost-api",
+  "description": "TaskHost API - ein Wunderlist-inspiriertes REST-Backend in PHP",
+  "type": "project",
+  "require": {
+    "php": "^8.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "TaskHost\\": "src/"
+    }
+  }
+}

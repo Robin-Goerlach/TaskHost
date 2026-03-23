@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaskHost</title>
+    <meta
+      name="description"
+      content="TaskHost Frontend für eine Wunderlist-inspirierte Aufgabenverwaltung auf Basis der TaskHost PHP REST API."
+    />
+    <link rel="stylesheet" href="./assets/app.css" />
+    <script>
+      window.TASKHOST_CONFIG = {
+        apiBaseUrl: 'http://127.0.0.1:8080/api/v1',
+        appName: 'TaskHost',
+      };
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
