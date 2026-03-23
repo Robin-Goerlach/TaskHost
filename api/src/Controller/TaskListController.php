@@ -85,6 +85,16 @@ final class TaskListController
         ]);
     }
 
+
+    public function resendInvitation(Request $request, int $id, int $invitationId): Response
+    {
+        $user = $request->attribute('user');
+
+        return Response::json([
+            'data' => $this->taskListService->resendInvitation($id, $invitationId, (int) $user['id']),
+        ], 202);
+    }
+
     public function acceptInvitation(Request $request, string $token): Response
     {
         $user = $request->attribute('user');

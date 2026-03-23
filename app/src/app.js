@@ -143,6 +143,11 @@ export class TaskHostApp {
     this.state.error = null;
   }
 
+  listTitleById(listId) {
+    const list = this.state.lists.find((entry) => Number(entry.id) === Number(listId));
+    return list?.title || `Liste ${listId}`;
+  }
+
   async bootstrap() {
     try {
       this.clearError();
@@ -295,6 +300,13 @@ export class TaskHostApp {
       await action();
       this.clearError();
     } catch (error) {
+      if (error?.status === 401 && this.state.auth.token) {
+        await this.hardLogout();
+        this.setError('Die Sitzung ist abgelaufen. Bitte melde dich erneut an.');
+        this.addToast('Die Sitzung ist abgelaufen. Bitte melde dich erneut an.', 'error');
+        return;
+      }
+
       this.setError(error.message || 'Unbekannter Fehler');
       this.addToast(error.message || 'Unbekannter Fehler', 'error');
     }
@@ -350,6 +362,7 @@ export class TaskHostApp {
     const attachmentId = Number(button.dataset.attachmentId || 0);
     const commentId = Number(button.dataset.commentId || 0);
     const userId = Number(button.dataset.userId || 0);
+    const invitationId = Number(button.dataset.invitationId || 0);
 
     await this.withErrorHandling(async () => {
       switch (action) {
@@ -472,6 +485,33 @@ export class TaskHostApp {
           this.state.share.members = await this.api.listMembers(listId);
           this.addToast('Mitglied entfernt.');
           this.render();
+          break;
+        }
+        case 'resend-invitation': {
+          await this.api.resendInvitation(listId, invitationId);
+          this.state.share.invitations = await this.api.listInvitations(listId);
+          this.addToast('Einladung wurde erneut zum Versand eingeplant.');
+          this.render();
+          break;
+        }
+        case 'copy-invitation-link': {
+          const invitation = this.state.share.invitations.find((entry) => Number(entry.id) === invitationId);
+          if (!invitation?.token) {
+            this.addToast('Einladungslink konnte nicht ermittelt werden.', 'error');
+            return;
+          }
+
+          const inviteUrl = `${window.location.origin}${window.location.pathname}#invite/${invitation.token}`;
+          try {
+            if (navigator.clipboard?.writeText) {
+              await navigator.clipboard.writeText(inviteUrl);
+              this.addToast('Einladungslink in die Zwischenablage kopiert.');
+            } else {
+              window.prompt('Einladungslink kopieren:', inviteUrl);
+            }
+          } catch {
+            window.prompt('Einladungslink kopieren:', inviteUrl);
+          }
           break;
         }
         case 'delete-subtask': {
@@ -675,14 +715,28 @@ export class TaskHostApp {
           break;
         }
         case 'share-list': {
-          const result = await this.api.shareList(Number(form.dataset.listId), {
+          const listId = Number(form.dataset.listId);
+          const result = await this.api.shareList(listId, {
             email: values.email,
             role: values.role,
+            notify: values.notify === '1',
           });
-          this.state.share.members = await this.api.listMembers(Number(form.dataset.listId));
-          this.state.share.invitations = await this.api.listInvitations(Number(form.dataset.listId));
-          this.addToast(result.mode === 'invitation' ? 'Einladung angelegt.' : 'Mitglied direkt hinzugefügt.');
+          this.state.share.members = await this.api.listMembers(listId);
+          this.state.share.invitations = await this.api.listInvitations(listId);
+
+          if (result.mode === 'invitation') {
+            this.addToast(result.notification?.queued
+              ? 'Einladung angelegt und zum Versand eingeplant.'
+              : 'Einladung angelegt. Kein Mailversand ausgelöst.');
+          } else {
+            this.addToast(result.notification?.queued
+              ? 'Mitglied hinzugefügt und Benachrichtigung eingeplant.'
+              : 'Mitglied direkt hinzugefügt.');
+          }
+
           form.reset();
+          const notifyField = form.querySelector('input[name="notify"]');
+          if (notifyField) notifyField.checked = true;
           this.render();
           break;
         }
@@ -748,7 +802,9 @@ export class TaskHostApp {
           });
           form.reset();
           await this.loadTaskDetails(this.state.selectedTaskId);
-          this.addToast('Erinnerung angelegt.');
+          this.addToast(values.channel === 'email' || values.channel === 'both'
+            ? 'Erinnerung angelegt. Der Mailversand erfolgt asynchron.'
+            : 'Erinnerung angelegt.');
           break;
         }
         case 'update-reminder': {
@@ -757,6 +813,9 @@ export class TaskHostApp {
             channel: values.channel,
           });
           await this.loadTaskDetails(this.state.selectedTaskId);
+          this.addToast(values.channel === 'email' || values.channel === 'both'
+            ? 'Erinnerung aktualisiert. Mailversand wird bei Fälligkeit asynchron verarbeitet.'
+            : 'Erinnerung aktualisiert.');
           break;
         }
         case 'upload-attachment': {

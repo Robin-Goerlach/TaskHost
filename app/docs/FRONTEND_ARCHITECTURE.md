@@ -98,3 +98,14 @@ Bereits berücksichtigt:
 - dedizierter Router für Deep Links
 - End-to-End-Testautomatisierung
 - komponentenorientierte Migration nach React, falls später nötig
+
+
+## Anpassungen für Async-Mail und Queue
+
+Das Frontend wurde an den erweiterten API-Stand angepasst:
+
+- offene Einladungen können erneut zum Versand eingeplant werden
+- Einladungslinks können direkt aus der UI kopiert werden
+- Reminder sind benutzerbezogen und zeigen Versand-/Fehlerstatus an
+- UI-Texte unterscheiden bewusst zwischen sofortigen Änderungen und asynchron eingeplanten Hintergrundaktionen
+- bei HTTP 401 wird die lokale Sitzung verworfen und eine erneute Anmeldung erzwungen

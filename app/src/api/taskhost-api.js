@@ -63,6 +63,9 @@ export function createTaskHostApi(baseUrl) {
     async shareList(id, payload) {
       return unwrapData(await client.post(`/lists/${id}/share`, payload));
     },
+    async resendInvitation(listId, invitationId) {
+      return unwrapData(await client.post(`/lists/${listId}/invitations/${invitationId}/resend`, {}));
+    },
     async removeMember(listId, userId) {
       return client.delete(`/lists/${listId}/members/${userId}`);
     },

@@ -18,9 +18,9 @@ final class InvitationRepository
         $now = DateTimeHelper::nowUtc();
         $stmt = $this->pdo->prepare(
             'INSERT INTO list_invitations
-             (list_id, invited_email, role, token, status, invited_by_user_id, accepted_by_user_id, expires_at, created_at, updated_at)
+             (list_id, invited_email, role, token, status, invited_by_user_id, accepted_by_user_id, expires_at, last_notified_at, notification_count, created_at, updated_at)
              VALUES
-             (:list_id, :invited_email, :role, :token, :status, :invited_by_user_id, NULL, :expires_at, :created_at, :updated_at)'
+             (:list_id, :invited_email, :role, :token, :status, :invited_by_user_id, NULL, :expires_at, NULL, 0, :created_at, :updated_at)'
         );
 
         $stmt->execute([
@@ -35,7 +35,7 @@ final class InvitationRepository
             'updated_at' => $now,
         ]);
 
-        return $this->findByToken($token);
+        return $this->findById((int) $this->pdo->lastInsertId());
     }
 
     public function pendingForList(int $listId): array
@@ -52,6 +52,14 @@ final class InvitationRepository
         ]);
 
         return $stmt->fetchAll();
+    }
+
+    public function findById(int $invitationId): ?array
+    {
+        $stmt = $this->pdo->prepare('SELECT * FROM list_invitations WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $invitationId]);
+
+        return $stmt->fetch() ?: null;
     }
 
     public function findByToken(string $token): ?array
@@ -73,6 +81,23 @@ final class InvitationRepository
             'status' => 'accepted',
             'accepted_by_user_id' => $acceptedByUserId,
             'updated_at' => DateTimeHelper::nowUtc(),
+            'id' => $invitationId,
+        ]);
+    }
+
+    public function markNotificationQueued(int $invitationId): void
+    {
+        $stmt = $this->pdo->prepare(
+            'UPDATE list_invitations
+             SET last_notified_at = :last_notified_at,
+                 notification_count = COALESCE(notification_count, 0) + 1,
+                 updated_at = :updated_at
+             WHERE id = :id'
+        );
+        $now = DateTimeHelper::nowUtc();
+        $stmt->execute([
+            'last_notified_at' => $now,
+            'updated_at' => $now,
             'id' => $invitationId,
         ]);
     }

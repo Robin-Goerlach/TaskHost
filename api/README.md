@@ -1,6 +1,6 @@
 # TaskHost API
 
-TaskHost API ist ein sauber strukturiertes REST-Backend in PHP für eine Wunderlist-inspirierte Aufgabenverwaltung.  
+TaskHost API ist ein sauber strukturiertes REST-Backend in PHP für eine Wunderlist-inspirierte Aufgabenverwaltung.
 Der Schwerpunkt liegt auf einer tragfähigen Server-Architektur, die Du später mit Web-Frontend, Mobile-App oder weiteren Services verbinden kannst.
 
 ## Enthaltene Funktionen
@@ -13,6 +13,7 @@ Der Schwerpunkt liegt auf einer tragfähigen Server-Architektur, die Du später 
   - direkte Freigabe an bestehende Benutzer
   - Einladungen für E-Mail-Adressen, die noch kein Konto haben
   - Annahme offener Einladungen
+  - erneuter Versand offener Einladungen
 - Rollen auf Listenebene (`owner`, `editor`, `viewer`)
 - Aufgaben
   - anlegen, ändern, löschen
@@ -25,7 +26,9 @@ Der Schwerpunkt liegt auf einer tragfähigen Server-Architektur, die Du später 
 - Unteraufgaben
 - Notizen pro Aufgabe
 - Kommentare pro Aufgabe
-- Erinnerungen
+- Erinnerungen pro Benutzer
+  - `in_app`, `email`, `both`
+  - Mail-Reminder werden über Queue/Worker ausgeliefert
 - Anhänge mit Upload auf lokales Dateisystem
 - Smarte Ansichten
   - Heute
@@ -34,19 +37,24 @@ Der Schwerpunkt liegt auf einer tragfähigen Server-Architektur, die Du später 
   - Mir zugewiesen
   - Erledigt
 - Suche über erreichbare Aufgaben
+- Asynchrone Infrastruktur
+  - Mail-Outbox
+  - Queue-Jobs
+  - Worker-CLI
+  - Retry mit Backoff
+  - File-Mailer für sichere lokale Entwicklung
+  - Native-Mailer via PHP `mail()` für einfache Server-Setups
 
 ## Was bewusst noch nicht enthalten ist
 
-Dieses Backend deckt die fachlichen Kernfunktionen ab. Für vollständige 1:1-Parität mit dem historischen Wunderlist-Produkt fehlen noch einige Dinge, die besser als eigener Ausbauschritt kommen sollten:
+Dieses Backend deckt jetzt neben dem fachlichen Kern auch Mail-Queue und Reminder-Auslieferung ab. Für vollständige 1:1-Parität mit dem historischen Wunderlist-Produkt fehlen weiterhin einige Themen, die besser als eigener Ausbauschritt kommen sollten:
 
-- E-Mail-Versand für Einladungen und Erinnerungen
 - Push-Benachrichtigungen
 - Konfliktauflösung für Offline-Sync
 - Activity Feed / Audit Trail pro Änderung
 - Export/Import im Wunderlist- oder Microsoft-To-Do-Format
 - OAuth / SSO
 - Rate Limiting
-- Hintergrundjobs für Reminder-Auslieferung
 
 ## Projektstruktur
 
@@ -56,9 +64,13 @@ public/
 bin/
   migrate.php
   seed.php
+  worker.php
+  doctor.php
 migrations/
-  001_sqlite.sql
-  001_mysql.sql
+  010_sqlite_full_schema_and_views.sql
+  010_mysql_full_schema_and_views.sql
+  020_sqlite_async_mail_and_queue.sql
+  020_mysql_async_mail_and_queue.sql
 src/
   Bootstrap.php
   Application.php
@@ -68,9 +80,9 @@ src/
   Repository/
   Security/
   Service/
-  Support/
 storage/
   uploads/
+  mail/
 ```
 
 ## Starten
@@ -81,17 +93,42 @@ storage/
 cp .env.example .env
 ```
 
-### 2. Datenbank initialisieren
+Für einen sicheren ersten lokalen Start bleibt `MAIL_TRANSPORT=file`. Dann werden E-Mails als `.eml`-Dateien unter `storage/mail/` abgelegt, statt sie sofort nach außen zu versenden.
+
+### 2. Umfeld prüfen
+
+```bash
+php bin/doctor.php
+```
+
+### 3. Datenbank initialisieren
 
 ```bash
 php bin/migrate.php
 php bin/seed.php
 ```
 
-### 3. Entwicklungsserver starten
+Hinweis: `php bin/migrate.php` führt das aktuelle Full-Schema aus. Das Legacy-Upgrade-Skript `020_*` ist nur für ältere Datenbanken gedacht und kann bei Bedarf manuell mit `--legacy-upgrade` ergänzt werden.
+
+### 4. Entwicklungsserver starten
 
 ```bash
 php -S 127.0.0.1:8080 -t public
+```
+
+### 5. Reminder-Queue und Mail-Queue verarbeiten
+
+Einmalige Ausführung:
+
+```bash
+php bin/worker.php reminders:enqueue --limit=100
+php bin/worker.php queue:drain --queue=mail --limit=50
+```
+
+Dauerbetrieb als Worker:
+
+```bash
+php bin/worker.php queue:work --queue=mail --limit=50 --sleep=10
 ```
 
 ## Demo-Zugang nach `seed.php`
@@ -125,6 +162,7 @@ php -S 127.0.0.1:8080 -t public
 - `GET /api/v1/lists/{id}/members`
 - `POST /api/v1/lists/{id}/share`
 - `GET /api/v1/lists/{id}/invitations`
+- `POST /api/v1/lists/{id}/invitations/{invitationId}/resend`
 - `DELETE /api/v1/lists/{id}/members/{userId}`
 - `POST /api/v1/invitations/{token}/accept`
 
@@ -179,7 +217,9 @@ php -S 127.0.0.1:8080 -t public
 - `GET /api/v1/views/completed`
 - `GET /api/v1/search?q=bericht`
 
-## Beispiel: Login
+## Beispiele
+
+### Login
 
 ```bash
 curl -X POST http://127.0.0.1:8080/api/v1/auth/login \
@@ -187,21 +227,34 @@ curl -X POST http://127.0.0.1:8080/api/v1/auth/login \
   -d '{"email":"alice@example.com","password":"ChangeMe123!"}'
 ```
 
-## Beispiel: Aufgabe anlegen
+### Liste teilen und Einladungsmail in die Queue stellen
 
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/lists/1/tasks \
+curl -X POST http://127.0.0.1:8080/api/v1/lists/1/share \
   -H "Authorization: Bearer DEIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "title":"API für Kommentare fertigstellen",
-    "due_at":"2026-03-24T10:00:00+01:00",
-    "is_starred":true,
-    "recurrence_type":"week",
-    "recurrence_interval":1
+    "email":"bob@example.com",
+    "role":"editor",
+    "notify":true
   }'
 ```
 
-## Fachliche Orientierung
+### Mail-Reminder anlegen
 
-Wunderlist war eine cloudbasierte Aufgabenverwaltung und unterstützte Listen, Aufgaben, Notizen, Unteraufgaben, Kommentare, Erinnerungen und Dateien; das ist auch in diesem Backend abgebildet. Die veraltete Microsoft-Connector-Dokumentation zeigt genau diese Ressourcen und Operationen wie Listen, Tasks, Notes, Subtasks, Comments, Reminders und Files. citeturn562895view0turn731277search1
+```bash
+curl -X POST http://127.0.0.1:8080/api/v1/tasks/1/reminders \
+  -H "Authorization: Bearer DEIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "remind_at":"2026-03-24T08:30:00+01:00",
+    "channel":"email"
+  }'
+```
+
+### Fällige Reminder einsammeln und Mail-Jobs abarbeiten
+
+```bash
+php bin/worker.php reminders:enqueue --limit=100
+php bin/worker.php queue:drain --queue=mail --limit=50
+```

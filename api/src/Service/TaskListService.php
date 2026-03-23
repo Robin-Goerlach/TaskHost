@@ -10,7 +10,6 @@ use TaskHost\Repository\ListMemberRepository;
 use TaskHost\Repository\TaskListRepository;
 use TaskHost\Repository\UserRepository;
 use TaskHost\Support\ApiException;
-use TaskHost\Support\DateTimeHelper;
 
 final class TaskListService
 {
@@ -19,7 +18,8 @@ final class TaskListService
         private readonly FolderRepository $folderRepository,
         private readonly ListMemberRepository $listMemberRepository,
         private readonly InvitationRepository $invitationRepository,
-        private readonly UserRepository $userRepository
+        private readonly UserRepository $userRepository,
+        private readonly AsyncMailService $asyncMailService
     ) {
     }
 
@@ -131,6 +131,7 @@ final class TaskListService
 
         $email = mb_strtolower(trim((string) ($payload['email'] ?? '')));
         $role = (string) ($payload['role'] ?? 'editor');
+        $notify = array_key_exists('notify', $payload) ? (bool) $payload['notify'] : true;
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             throw new ApiException('Ungültige E-Mail-Adresse.');
@@ -140,17 +141,34 @@ final class TaskListService
             throw new ApiException('Ungültige Rolle.');
         }
 
+        $inviter = $this->userRepository->findById($userId);
         $targetUser = $this->userRepository->findByEmail($email);
 
         if ($targetUser !== null) {
             $this->listMemberRepository->add($listId, (int) $targetUser['id'], $role, $userId);
 
-            return [
+            $result = [
                 'mode' => 'direct_membership',
                 'list_id' => $listId,
                 'user' => $targetUser,
                 'role' => $role,
             ];
+
+            if ($notify) {
+                $mail = $this->asyncMailService->queueListShared(
+                    $list,
+                    $targetUser,
+                    $inviter,
+                    $role,
+                    'list-share:' . $listId . ':' . (int) $targetUser['id'] . ':' . $role
+                );
+                $result['notification'] = [
+                    'queued' => true,
+                    'mail_message_id' => (int) $mail['id'],
+                ];
+            }
+
+            return $result;
         }
 
         $token = bin2hex(random_bytes(24));
@@ -158,10 +176,54 @@ final class TaskListService
             ->modify('+14 days')
             ->format('Y-m-d H:i:s');
 
-        return [
+        $invitation = $this->invitationRepository->create($listId, $email, $role, $userId, $token, $expiresAt);
+        $result = [
             'mode' => 'invitation',
-            'invitation' => $this->invitationRepository->create($listId, $email, $role, $userId, $token, $expiresAt),
+            'invitation' => $invitation,
             'accept_url_hint' => '/api/v1/invitations/' . $token . '/accept',
+        ];
+
+        if ($notify) {
+            $mail = $this->asyncMailService->queueInvitation(
+                $invitation,
+                $list,
+                $inviter,
+                'invitation:' . (int) $invitation['id'] . ':' . (string) $invitation['token']
+            );
+            $this->invitationRepository->markNotificationQueued((int) $invitation['id']);
+            $result['notification'] = [
+                'queued' => true,
+                'mail_message_id' => (int) $mail['id'],
+            ];
+        }
+
+        return $result;
+    }
+
+    public function resendInvitation(int $listId, int $invitationId, int $userId): array
+    {
+        $list = $this->show($listId, $userId);
+        if ((int) $list['owner_user_id'] !== $userId) {
+            throw new ApiException('Nur der Eigentümer darf Einladungen erneut senden.', 403);
+        }
+
+        $invitation = $this->invitationRepository->findById($invitationId);
+        if ($invitation === null || (int) $invitation['list_id'] !== $listId) {
+            throw new ApiException('Einladung nicht gefunden.', 404);
+        }
+
+        if ((string) $invitation['status'] !== 'pending') {
+            throw new ApiException('Nur offene Einladungen können erneut versendet werden.', 409);
+        }
+
+        $inviter = $this->userRepository->findById($userId);
+        $mail = $this->asyncMailService->queueInvitation($invitation, $list, $inviter);
+        $this->invitationRepository->markNotificationQueued($invitationId);
+
+        return [
+            'invitation_id' => $invitationId,
+            'queued' => true,
+            'mail_message_id' => (int) $mail['id'],
         ];
     }
 

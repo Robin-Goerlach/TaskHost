@@ -145,17 +145,55 @@ function renderSubtaskRow(subtask) {
   `;
 }
 
+function renderInvitationRow(invitation, listId) {
+  return `
+    <article class="compact-card">
+      <div>
+        <strong>${escapeHtml(invitation.invited_email)}</strong>
+        <div class="muted-text">${escapeHtml(invitation.role)} · gültig bis ${escapeHtml(formatDateTime(invitation.expires_at))}</div>
+        <div class="muted-text">Benachrichtigt: ${invitation.last_notified_at ? escapeHtml(formatDateTime(invitation.last_notified_at)) : 'noch nicht'} · Versuche ${escapeHtml(invitation.notification_count ?? 0)}</div>
+      </div>
+      <div class="inline-actions">
+        <button type="button" class="ghost-button" data-action="copy-invitation-link" data-list-id="${listId}" data-invitation-id="${invitation.id}">Link kopieren</button>
+        <button type="button" class="ghost-button" data-action="resend-invitation" data-list-id="${listId}" data-invitation-id="${invitation.id}">Erneut senden</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderReminderStatus(reminder) {
+  if (Number(reminder.is_sent)) {
+    return `Versendet${reminder.sent_at ? ` · ${escapeHtml(formatDateTime(reminder.sent_at))}` : ''}`;
+  }
+
+  if (reminder.last_error) {
+    return `Letzter Fehler · ${escapeHtml(reminder.last_error)}`;
+  }
+
+  if (reminder.queued_at) {
+    return `Zum Versand eingeplant · ${escapeHtml(formatDateTime(reminder.queued_at))}`;
+  }
+
+  return reminder.channel === 'email' || reminder.channel === 'both'
+    ? 'Mail wird bei Fälligkeit asynchron verarbeitet'
+    : 'In-App-Erinnerung aktiv';
+}
+
 function renderReminderRow(reminder) {
   return `
-    <form class="list-row-form" data-form="update-reminder" data-reminder-id="${reminder.id}">
-      <input type="datetime-local" name="remind_at" value="${toDateTimeLocalValue(reminder.remind_at)}" required />
-      <select name="channel">
-        <option value="in_app" ${reminder.channel === 'in_app' ? 'selected' : ''}>In App</option>
-        <option value="email" ${reminder.channel === 'email' ? 'selected' : ''}>E-Mail</option>
-      </select>
-      <button type="submit" class="ghost-button">Aktualisieren</button>
-      <button type="button" class="ghost-button danger-text" data-action="delete-reminder" data-reminder-id="${reminder.id}">Löschen</button>
-    </form>
+    <div class="compact-card">
+      <form class="list-row-form" data-form="update-reminder" data-reminder-id="${reminder.id}">
+        <input type="datetime-local" name="remind_at" value="${toDateTimeLocalValue(reminder.remind_at)}" required />
+        <select name="channel">
+          <option value="in_app" ${reminder.channel === 'in_app' ? 'selected' : ''}>In App</option>
+          <option value="email" ${reminder.channel === 'email' ? 'selected' : ''}>E-Mail</option>
+          <option value="both" ${reminder.channel === 'both' ? 'selected' : ''}>Beides</option>
+        </select>
+        <button type="submit" class="ghost-button">Aktualisieren</button>
+        <button type="button" class="ghost-button danger-text" data-action="delete-reminder" data-reminder-id="${reminder.id}">Löschen</button>
+      </form>
+      <div class="muted-text tiny-top-gap">${renderReminderStatus(reminder)}</div>
+    </div>
   `;
 }
 
@@ -352,9 +390,11 @@ function renderTaskDetail(state) {
           <select name="channel">
             <option value="in_app">In App</option>
             <option value="email">E-Mail</option>
+            <option value="both">Beides</option>
           </select>
           <button type="submit" class="primary-button">Erinnerung anlegen</button>
         </form>
+        <div class="muted-text tiny-top-gap">Reminder sind benutzerbezogen. Mail-Erinnerungen werden asynchron in die Versand-Queue gestellt.</div>
       </section>
 
       <section class="panel-card">
@@ -484,16 +524,16 @@ function renderModalContent(state) {
                   <option value="viewer">Viewer</option>
                 </select>
               </label>
+              <label class="checkbox-row">
+                <input type="checkbox" name="notify" value="1" checked />
+                <span>Benachrichtigung einplanen</span>
+              </label>
+              <div class="muted-text">Einladungen und Benachrichtigungen werden asynchron verarbeitet. Die UI bestätigt daher das Einplanen, nicht die sofortige Zustellung.</div>
               <div class="form-actions"><button type="submit" class="primary-button">Einladen</button></div>
             </form>
             <h4>Offene Einladungen</h4>
             <div class="stack-list compact-list">
-              ${state.share.invitations.map((invitation) => `
-                <article class="compact-card">
-                  <strong>${escapeHtml(invitation.invited_email)}</strong>
-                  <div class="muted-text">${escapeHtml(invitation.role)} · gültig bis ${escapeHtml(formatDateTime(invitation.expires_at))}</div>
-                </article>
-              `).join('') || '<div class="muted-card">Keine offenen Einladungen.</div>'}
+              ${state.share.invitations.map((invitation) => renderInvitationRow(invitation, modal.list.id)).join('') || '<div class="muted-card">Keine offenen Einladungen.</div>'}
             </div>
           </div>
         </section>
@@ -591,7 +631,7 @@ export function renderApp(state) {
                   (task) => `
                     <button type="button" class="search-result" data-action="open-task" data-task-id="${task.id}" data-list-id="${task.list_id}">
                       <strong>${escapeHtml(task.title)}</strong>
-                      <span class="muted-text">Liste ${escapeHtml(task.list_id)}${task.due_at ? ` · ${escapeHtml(formatDate(task.due_at))}` : ''}</span>
+                      <span class="muted-text">${escapeHtml(state.lists.find((entry) => Number(entry.id) === Number(task.list_id))?.title || `Liste ${task.list_id}`)}${task.due_at ? ` · ${escapeHtml(formatDate(task.due_at))}` : ''}</span>
                     </button>
                   `,
                 )

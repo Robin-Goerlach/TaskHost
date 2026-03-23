@@ -18,13 +18,16 @@ use TaskHost\Http\Router;
 use TaskHost\Infrastructure\Autoloader;
 use TaskHost\Infrastructure\Config\Env;
 use TaskHost\Infrastructure\Database\ConnectionFactory;
+use TaskHost\Infrastructure\Mail\MailerFactory;
 use TaskHost\Repository\AttachmentRepository;
 use TaskHost\Repository\AuthTokenRepository;
 use TaskHost\Repository\CommentRepository;
 use TaskHost\Repository\FolderRepository;
 use TaskHost\Repository\InvitationRepository;
 use TaskHost\Repository\ListMemberRepository;
+use TaskHost\Repository\MailMessageRepository;
 use TaskHost\Repository\NoteRepository;
+use TaskHost\Repository\QueueJobRepository;
 use TaskHost\Repository\ReminderRepository;
 use TaskHost\Repository\SubtaskRepository;
 use TaskHost\Repository\TaskListRepository;
@@ -33,11 +36,15 @@ use TaskHost\Repository\UserRepository;
 use TaskHost\Security\AuthGuard;
 use TaskHost\Security\PasswordHasher;
 use TaskHost\Security\TokenService;
+use TaskHost\Service\AsyncMailService;
 use TaskHost\Service\AttachmentService;
 use TaskHost\Service\AuthService;
 use TaskHost\Service\CommentService;
 use TaskHost\Service\FolderService;
+use TaskHost\Service\MailTemplateService;
 use TaskHost\Service\NoteService;
+use TaskHost\Service\QueueWorkerService;
+use TaskHost\Service\ReminderDispatchService;
 use TaskHost\Service\ReminderService;
 use TaskHost\Service\TaskListService;
 use TaskHost\Service\TaskService;
@@ -48,6 +55,11 @@ require_once __DIR__ . '/Infrastructure/Autoloader.php';
 final class Bootstrap
 {
     public static function createApplication(string $projectRoot): Application
+    {
+        return self::createRuntime($projectRoot)['app'];
+    }
+
+    public static function createRuntime(string $projectRoot): array
     {
         Env::load($projectRoot);
         date_default_timezone_set(Env::get('APP_TIMEZONE', 'Europe/Berlin') ?? 'Europe/Berlin');
@@ -66,17 +78,31 @@ final class Bootstrap
         $commentRepository = new CommentRepository($pdo);
         $reminderRepository = new ReminderRepository($pdo);
         $attachmentRepository = new AttachmentRepository($pdo);
+        $mailMessageRepository = new MailMessageRepository($pdo);
+        $queueJobRepository = new QueueJobRepository($pdo);
 
         $passwordHasher = new PasswordHasher();
         $tokenService = new TokenService();
         $authGuard = new AuthGuard($authTokenRepository, $tokenService);
+        $mailer = MailerFactory::create($projectRoot);
+
+        $mailTemplateService = new MailTemplateService(
+            Env::get('APP_URL', 'http://127.0.0.1:8080') ?? 'http://127.0.0.1:8080',
+            Env::get('FRONTEND_APP_URL'),
+            Env::get('MAIL_FROM_ADDRESS', 'no-reply@taskhost.local') ?? 'no-reply@taskhost.local',
+            Env::get('MAIL_FROM_NAME', 'TaskHost') ?? 'TaskHost'
+        );
+        $asyncMailService = new AsyncMailService($mailMessageRepository, $queueJobRepository, $mailTemplateService);
+        $reminderDispatchService = new ReminderDispatchService($reminderRepository, $asyncMailService);
+        $queueWorkerService = new QueueWorkerService($queueJobRepository, $mailMessageRepository, $reminderRepository, $mailer);
 
         $taskListService = new TaskListService(
             $taskListRepository,
             $folderRepository,
             $listMemberRepository,
             $invitationRepository,
-            $userRepository
+            $userRepository,
+            $asyncMailService
         );
 
         $taskService = new TaskService(
@@ -133,6 +159,7 @@ final class Bootstrap
         $router->add('GET', '/api/v1/lists/{id}/members', [$taskListController, 'members'], true);
         $router->add('POST', '/api/v1/lists/{id}/share', [$taskListController, 'share'], true);
         $router->add('GET', '/api/v1/lists/{id}/invitations', [$taskListController, 'invitations'], true);
+        $router->add('POST', '/api/v1/lists/{id}/invitations/{invitationId}/resend', [$taskListController, 'resendInvitation'], true);
         $router->add('DELETE', '/api/v1/lists/{id}/members/{userId}', [$taskListController, 'removeMember'], true);
         $router->add('POST', '/api/v1/invitations/{token}/accept', [$taskListController, 'acceptInvitation'], true);
 
@@ -169,11 +196,27 @@ final class Bootstrap
         $router->add('GET', '/api/v1/views/{view}', [$viewController, 'show'], true);
         $router->add('GET', '/api/v1/search', [$taskController, 'search'], true);
 
-        return new Application(
+        $app = new Application(
             $router,
             $authGuard,
             Env::bool('APP_DEBUG', false),
             Env::get('CORS_ALLOW_ORIGIN', '*') ?? '*'
         );
+
+        return [
+            'app' => $app,
+            'pdo' => $pdo,
+            'repositories' => [
+                'mail_messages' => $mailMessageRepository,
+                'queue_jobs' => $queueJobRepository,
+                'reminders' => $reminderRepository,
+            ],
+            'services' => [
+                'async_mail' => $asyncMailService,
+                'reminder_dispatch' => $reminderDispatchService,
+                'queue_worker' => $queueWorkerService,
+                'mail_templates' => $mailTemplateService,
+            ],
+        ];
     }
 }
