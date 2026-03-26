@@ -551,7 +551,7 @@ export function renderApp(state) {
       <main class="auth-shell">
         <section class="auth-card hero-card">
           <div class="eyebrow">TaskHost</div>
-          <h1>Frontend für eine Wunderlist-inspirierte Aufgabenverwaltung</h1>
+          <h1>Frontend für eine pfadbasierte Aufgabenverwaltung</h1>
           <p>
             Vollwertige Oberflächen für Listen, Aufgaben, Unteraufgaben, Kommentare, Erinnerungen,
             Anhänge, Freigaben und smarte Ansichten – direkt gegen die PHP REST API.

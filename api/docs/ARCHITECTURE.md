@@ -2,15 +2,15 @@
 
 ## Ziel
 
-Dieses Backend bildet die fachlichen Kernobjekte einer Wunderlist-inspirierten Anwendung ab, ohne bereits unnötig komplex zu werden.  
+Dieses Backend bildet die fachlichen Kernobjekte einer pfadbasierten Anwendung ab, ohne bereits unnötig komplex zu werden.  
 Der Schwerpunkt liegt auf einer stabilen REST-Schnittstelle, klarer Schichtung und einer Struktur, die später gut auf MySQL, Queue-Worker, Mailversand und Frontend-Anbindung erweitert werden kann.
 
 ## Schichten
 
-### Public Entry Point
+### HTTP Entry Point
 
-`public/index.php` ist der einzige HTTP-Einstiegspunkt.  
-Dort wird die Anwendung gebootstrapped und die Anfrage an Router und Controller übergeben.
+`index.php` im API-Root ist der produktive HTTP-Einstiegspunkt.  
+Ein klassischer `public/`-Webroot wird im Shared-Hosting-Zielbild bewusst nicht verwendet. Dort wird die Anwendung gebootstrapped und die Anfrage an Router und Controller übergeben.
 
 ### Bootstrap
 

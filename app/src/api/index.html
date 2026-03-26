@@ -6,10 +6,15 @@
     <title>TaskHost</title>
     <meta
       name="description"
-      content="TaskHost Frontend für eine pfadbasierte Aufgabenverwaltung auf Basis der TaskHost PHP REST API."
+      content="TaskHost Frontend für eine Wunderlist-inspirierte Aufgabenverwaltung auf Basis der TaskHost PHP REST API."
     />
     <link rel="stylesheet" href="./assets/app.css" />
-    <script src="./config/taskhost.config.js"></script>
+    <script>
+      window.TASKHOST_CONFIG = {
+        apiBaseUrl: 'http://127.0.0.1:8080/api/v1',
+        appName: 'TaskHost',
+      };
+    </script>
   </head>
   <body>
     <div id="app"></div>

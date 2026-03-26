@@ -18,7 +18,7 @@ final class MailTemplateService
     {
         $acceptUrl = $this->frontendAppUrl !== null && trim($this->frontendAppUrl) !== ''
             ? rtrim($this->frontendAppUrl, '/') . '/#invite/' . $invitation['token']
-            : rtrim($this->appUrl, '/') . '/api/v1/invitations/' . $invitation['token'] . '/accept';
+            : rtrim($this->appUrl, '/') . '/v1/invitations/' . $invitation['token'] . '/accept';
 
         $inviterName = $inviter['display_name'] ?? $inviter['email'] ?? 'Jemand';
         $listTitle = $list['title'] ?? 'Liste';

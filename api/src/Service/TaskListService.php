@@ -180,7 +180,7 @@ final class TaskListService
         $result = [
             'mode' => 'invitation',
             'invitation' => $invitation,
-            'accept_url_hint' => '/api/v1/invitations/' . $token . '/accept',
+            'accept_url_hint' => '/v1/invitations/' . $token . '/accept',
         ];
 
         if ($notify) {

@@ -1,5 +1,15 @@
 <?php
 
+/**
+ * Main TaskHost application runtime.
+ *
+ * The application stays deliberately small. It delegates business logic to the
+ * service layer and limits itself to routing, authentication and response
+ * normalization.
+ *
+ * @package TaskHost
+ */
+
 declare(strict_types=1);
 
 namespace TaskHost;
@@ -21,8 +31,13 @@ final class Application
     ) {
     }
 
+    /**
+     * Handles one normalized request.
+     */
     public function handle(Request $request): Response
     {
+        // Browsers send a preflight request before cross-origin POST/PATCH/
+        // DELETE calls. Returning 204 keeps the API lightweight and predictable.
         if ($request->method === 'OPTIONS') {
             return Response::noContent();
         }
@@ -58,12 +73,16 @@ final class Application
         }
     }
 
+    /**
+     * Returns the CORS headers for API responses.
+     */
     public function corsHeaders(): array
     {
         return [
             'Access-Control-Allow-Origin' => $this->corsAllowOrigin,
             'Access-Control-Allow-Headers' => 'Authorization, Content-Type',
             'Access-Control-Allow-Methods' => 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+            'Vary' => 'Origin',
         ];
     }
 }

@@ -1,0 +1,20 @@
+Options -Indexes
+DirectoryIndex index.php
+RewriteEngine On
+
+# Interne und sensible Bereiche dürfen im Shared-Hosting-Modell nicht direkt
+# aus dem Web abgerufen werden. Da der klassische public/ Webroot entfällt,
+# muss dieser Schutz explizit im Root-Verzeichnis erfolgen.
+RewriteRule ^(src|bin|vendor|storage|migrations|docs)(/|$) - [F,L,NC]
+RewriteRule ^(composer\.json|composer\.lock|\.env|\.env\.example|README.*)$ - [F,L,NC]
+
+# Existierende Dateien wie index.php oder herunterladbare Assets werden direkt
+# ausgeliefert. Alles andere geht an den Front Controller im Projekt-Root.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Path-basiertes Deployment: Requests wie /taskhost/v1/auth/login landen hier.
+# Die eigentliche Entfernung des Basispfads übernimmt anschließend die Request-
+# Normalisierung in PHP.
+RewriteRule ^ index.php [QSA,L]

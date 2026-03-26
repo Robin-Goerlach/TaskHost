@@ -18,7 +18,7 @@ export class TaskHostApp {
   constructor(root, config = {}) {
     this.root = root;
     this.config = {
-      apiBaseUrl: config.apiBaseUrl || '/api/v1',
+      apiBaseUrl: config.apiBaseUrl || 'http://127.0.0.1:8080',
       appName: config.appName || 'TaskHost',
     };
 

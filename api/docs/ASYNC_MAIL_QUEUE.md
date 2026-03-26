@@ -24,7 +24,7 @@ Reminder sind jetzt benutzerbezogen. Das ist wichtig, weil Erinnerungen in getei
 
 ## Fluss für Einladungen
 
-1. `POST /api/v1/lists/{id}/share`
+1. `POST /v1/lists/{id}/share`
 2. Einladung wird in `list_invitations` gespeichert.
 3. Eine Mail-Nachricht wird in `mail_messages` angelegt.
 4. Ein `send_mail`-Job wird in `queue_jobs` eingestellt.

@@ -1,3 +1,4 @@
+#!/usr/bin/env php
 <?php
 
 declare(strict_types=1);
@@ -26,8 +27,7 @@ if ($baseMigration === null) {
 }
 
 $pdo = ConnectionFactory::create();
-
-ensureStorageDirectories($projectRoot);
+ensureStorageDirectories();
 
 $sql = file_get_contents($baseMigration);
 if ($sql === false) {
@@ -51,6 +51,9 @@ if ($runLegacyUpgrade) {
     }
 }
 
+/**
+ * Finds the latest full schema migration for the selected database driver.
+ */
 function findLatestFullSchemaMigration(string $migrationsDir, string $driver): ?string
 {
     $files = glob($migrationsDir . '/*_' . $driver . '_full_schema*.sql') ?: [];
@@ -59,11 +62,14 @@ function findLatestFullSchemaMigration(string $migrationsDir, string $driver): ?
     return $files !== [] ? end($files) : null;
 }
 
-function ensureStorageDirectories(string $projectRoot): void
+/**
+ * Ensures that the local storage directories exist before runtime starts.
+ */
+function ensureStorageDirectories(): void
 {
     $paths = [
-        Env::get('UPLOAD_DIR', $projectRoot . '/storage/uploads') ?? ($projectRoot . '/storage/uploads'),
-        Env::get('MAIL_FILE_DIR', $projectRoot . '/storage/mail') ?? ($projectRoot . '/storage/mail'),
+        Env::resolvePath(Env::get('UPLOAD_DIR'), 'storage/uploads'),
+        Env::resolvePath(Env::get('MAIL_FILE_DIR'), 'storage/mail'),
     ];
 
     foreach ($paths as $path) {

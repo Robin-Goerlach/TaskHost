@@ -1,92 +1,49 @@
-# TaskHost Frontend
+# TaskHost Client
 
-TaskHost Frontend is the browser UI for the TaskHost PHP backend. It is intentionally kept as a modular JavaScript application without a mandatory build step.
+The TaskHost client is intentionally kept path-based so it can be deployed below
+service folders such as:
 
-## Included Features
+- `https://app.sasd.de/taskhost`
+- `https://app.sasd.de/taskhost_old`
+- `https://app.sasd.de/health`
 
-- registration, login, logout
-- automatic invitation acceptance via `#invite/<token>`
-- smart views
-  - Today
-  - Planned
-  - Important
-  - Assigned to me
-  - Completed
-- folder creation, update, deletion, and ordering
-- list creation, update, archive, deletion, and ordering
-- sharing UI
-  - members overview
-  - invitation creation
-  - invitation resend
-  - member removal
-  - invitation-link copy flow
-- tasks
-  - create, update, delete
-  - star / unstar
-  - complete / restore
-  - move between lists
-- subtasks
-- notes
-- comments
-- reminders
-  - `in_app`, `email`, `both`
-  - queue-aware status rendering where available
-- attachments
-- search
+## Important configuration rule
 
-## Why no required build step?
-
-For this stage, the buildless approach is intentional:
-- easy to run locally next to the PHP API
-- fewer moving parts for the first robust version
-- readable code structure
-- good basis for a later React/Vue migration if UI complexity grows further
-
-## Structure
+Only one file needs to be changed when the API service path changes:
 
 ```text
-index.html
-assets/
-  app.css
-src/
-  main.js
-  app.js
-  api/
-    client.js
-    taskhost-api.js
-  ui/
-    templates.js
-  utils/
-    date.js
-docs/
-  FRONTEND_ARCHITECTURE.md
+config/taskhost.config.js
 ```
 
-## Local Start
+Example:
 
-### 1. Start the backend
-
-```bash
-cd ../api
-php -S 127.0.0.1:8080 -t public
+```js
+window.TASKHOST_CONFIG = {
+  apiBaseUrl: 'https://api.sasd.de/taskhost',
+  appName: 'TaskHost',
+};
 ```
 
-### 2. Start the frontend
+If the API folder is renamed to `taskhost_old`, change only that URL.
+
+## API root expectation
+
+The client expects only the **service root**, not the full versioned API path.
+It appends `/v1` internally.
+
+Examples:
+
+- `https://api.sasd.de/taskhost`
+- `https://api.sasd.de/taskhost_old`
+- `http://127.0.0.1:8080`
+
+## Deployment note
+
+The client does not currently require a dedicated `public/` webroot. It is
+served directly from its service folder below `app.sasd.de/<service-name>`.
+
+## Local development
 
 ```bash
-python3 -m http.server 4173
-```
-
-Then open:
-- frontend: `http://127.0.0.1:4173`
-- backend: `http://127.0.0.1:8080/api/v1`
-
-By default, `index.html` is configured for this local split setup.
-
-## Useful NPM Script
-
-Syntax check for the JavaScript modules:
-
-```bash
-npm run check
+php -S 127.0.0.1:4173 router.php
 ```

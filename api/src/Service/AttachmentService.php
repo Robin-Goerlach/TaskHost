@@ -1,5 +1,16 @@
 <?php
 
+/**
+ * Handles attachment upload, download and cleanup.
+ *
+ * Attachments are stored below the project local storage directory by default.
+ * The path can be overridden, but relative configuration values are always
+ * resolved against the API project root so that HTTP and CLI execution behave
+ * identically.
+ *
+ * @package TaskHost\Service
+ */
+
 declare(strict_types=1);
 
 namespace TaskHost\Service;
@@ -17,6 +28,9 @@ final class AttachmentService
     ) {
     }
 
+    /**
+     * Lists all attachments for one task.
+     */
     public function listForTask(int $taskId, int $userId): array
     {
         $this->taskService->show($taskId, $userId);
@@ -24,6 +38,9 @@ final class AttachmentService
         return $this->attachmentRepository->forTask($taskId);
     }
 
+    /**
+     * Stores one uploaded file.
+     */
     public function upload(int $taskId, int $userId, array $file): array
     {
         $task = $this->taskService->show($taskId, $userId);
@@ -34,7 +51,7 @@ final class AttachmentService
             throw new ApiException('Es wurde keine gültige Datei hochgeladen.', 422);
         }
 
-        $uploadDir = Env::get('UPLOAD_DIR', __DIR__ . '/../../storage/uploads');
+        $uploadDir = $this->uploadDirectory();
         if (!is_dir($uploadDir) && !mkdir($uploadDir, 0775, true) && !is_dir($uploadDir)) {
             throw new ApiException('Upload-Verzeichnis konnte nicht erstellt werden.', 500);
         }
@@ -56,6 +73,9 @@ final class AttachmentService
         );
     }
 
+    /**
+     * Loads one attachment for download.
+     */
     public function download(int $attachmentId, int $userId): array
     {
         $attachment = $this->attachmentRepository->findById($attachmentId);
@@ -65,9 +85,7 @@ final class AttachmentService
 
         $this->taskService->show((int) $attachment['task_id'], $userId);
 
-        $uploadDir = Env::get('UPLOAD_DIR', __DIR__ . '/../../storage/uploads');
-        $path = rtrim($uploadDir, '/\\') . DIRECTORY_SEPARATOR . $attachment['stored_name'];
-
+        $path = rtrim($this->uploadDirectory(), '/\\') . DIRECTORY_SEPARATOR . $attachment['stored_name'];
         if (!is_file($path)) {
             throw new ApiException('Datei wurde im Dateisystem nicht gefunden.', 404);
         }
@@ -78,6 +96,9 @@ final class AttachmentService
         ];
     }
 
+    /**
+     * Deletes one attachment and its stored file.
+     */
     public function delete(int $attachmentId, int $userId): void
     {
         $attachment = $this->attachmentRepository->findById($attachmentId);
@@ -89,13 +110,19 @@ final class AttachmentService
         $list = $this->taskListService->show((int) $task['list_id'], $userId);
         $this->taskListService->assertCanEditList($list, $userId);
 
-        $uploadDir = Env::get('UPLOAD_DIR', __DIR__ . '/../../storage/uploads');
-        $path = rtrim($uploadDir, '/\\') . DIRECTORY_SEPARATOR . $attachment['stored_name'];
-
+        $path = rtrim($this->uploadDirectory(), '/\\') . DIRECTORY_SEPARATOR . $attachment['stored_name'];
         if (is_file($path)) {
             @unlink($path);
         }
 
         $this->attachmentRepository->delete($attachmentId);
+    }
+
+    /**
+     * Resolves the attachment storage directory.
+     */
+    private function uploadDirectory(): string
+    {
+        return Env::resolvePath(Env::get('UPLOAD_DIR'), 'storage/uploads');
     }
 }

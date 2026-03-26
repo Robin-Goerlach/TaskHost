@@ -1,5 +1,15 @@
 <?php
 
+/**
+ * Lightweight application router.
+ *
+ * Route patterns are intentionally registered without any deployment-specific
+ * prefix. The request object already removed the external service path, so the
+ * router only needs to reason about canonical API paths such as /v1/auth/login.
+ *
+ * @package TaskHost\Http
+ */
+
 declare(strict_types=1);
 
 namespace TaskHost\Http;
@@ -10,6 +20,9 @@ final class Router
 {
     private array $routes = [];
 
+    /**
+     * Registers one route.
+     */
     public function add(string $method, string $pattern, callable $handler, bool $authRequired = false): void
     {
         $this->routes[] = [
@@ -20,6 +33,11 @@ final class Router
         ];
     }
 
+    /**
+     * Matches the current request against the registered routes.
+     *
+     * @return array{handler: callable, params: array<string, mixed>, authRequired: bool}
+     */
     public function match(Request $request): array
     {
         foreach ($this->routes as $route) {

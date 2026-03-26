@@ -7,8 +7,29 @@ function unwrapData(response) {
   return response;
 }
 
-export function createTaskHostApi(baseUrl) {
-  const client = new ApiClient(baseUrl);
+// The client only needs the service root, for example:
+// - http://127.0.0.1:8080
+// - https://api.sasd.de/taskhost
+// The version prefix is appended internally so that folder renames only require
+// one small configuration change.
+function normalizeServiceRoot(baseUrl) {
+  const normalized = String(baseUrl || '').trim().replace(/\/$/, '');
+  if (normalized === '') {
+    return '';
+  }
+
+  return normalized
+    .replace(/\/api\/v1$/i, '')
+    .replace(/\/v1$/i, '');
+}
+
+function resolveApiBaseUrl(baseUrl) {
+  const serviceRoot = normalizeServiceRoot(baseUrl);
+  return `${serviceRoot}/v1`;
+}
+
+export function createTaskHostApi(serviceRootUrl) {
+  const client = new ApiClient(resolveApiBaseUrl(serviceRootUrl));
 
   return {
     client,

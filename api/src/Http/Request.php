@@ -1,5 +1,16 @@
 <?php
 
+/**
+ * Normalized HTTP request model for TaskHost.
+ *
+ * The request class strips the externally visible service base path from the
+ * incoming URI. This allows the same API code to run below /taskhost,
+ * /taskhost_old or any other service path without changing the registered
+ * route patterns.
+ *
+ * @package TaskHost\Http
+ */
+
 declare(strict_types=1);
 
 namespace TaskHost\Http;
@@ -14,15 +25,23 @@ final class Request
         public readonly array $query,
         public readonly array $headers,
         public readonly mixed $body,
-        public readonly array $files = []
+        public readonly array $files = [],
+        public readonly string $basePath = ''
     ) {
     }
 
-    public static function fromGlobals(): self
+    /**
+     * Builds a request object from PHP globals.
+     *
+     * @param string $basePath Service base path such as /taskhost.
+     */
+    public static function fromGlobals(string $basePath = ''): self
     {
         $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
         $uri = $_SERVER['REQUEST_URI'] ?? '/';
         $path = parse_url($uri, PHP_URL_PATH) ?: '/';
+        $normalizedBasePath = self::normalizeBasePath($basePath);
+        $normalizedPath = self::normalizeRequestPath($path, $normalizedBasePath);
 
         $headers = function_exists('getallheaders') ? getallheaders() : [];
         $query = $_GET ?? [];
@@ -45,9 +64,12 @@ final class Request
             }
         }
 
-        return new self($method, $path, $query, $headers, $body ?? [], $_FILES ?? []);
+        return new self($method, $normalizedPath, $query, $headers, $body ?? [], $_FILES ?? [], $normalizedBasePath);
     }
 
+    /**
+     * Returns one request input value.
+     */
     public function input(string $key, mixed $default = null): mixed
     {
         if (!is_array($this->body)) {
@@ -57,6 +79,9 @@ final class Request
         return $this->body[$key] ?? $default;
     }
 
+    /**
+     * Returns the bearer token from the Authorization header.
+     */
     public function bearerToken(): ?string
     {
         $header = $this->headers['Authorization'] ?? $this->headers['authorization'] ?? null;
@@ -71,6 +96,9 @@ final class Request
         return trim($matches[1]);
     }
 
+    /**
+     * Adds a computed attribute to the request.
+     */
     public function withAttribute(string $key, mixed $value): self
     {
         $clone = clone $this;
@@ -79,8 +107,44 @@ final class Request
         return $clone;
     }
 
+    /**
+     * Reads a computed attribute.
+     */
     public function attribute(string $key, mixed $default = null): mixed
     {
         return $this->attributes[$key] ?? $default;
+    }
+
+    /**
+     * Normalizes a service base path.
+     */
+    private static function normalizeBasePath(string $basePath): string
+    {
+        $basePath = trim($basePath);
+        if ($basePath === '' || $basePath === '/') {
+            return '';
+        }
+
+        return '/' . trim($basePath, '/');
+    }
+
+    /**
+     * Removes the externally visible service path from the raw request URI.
+     */
+    private static function normalizeRequestPath(string $path, string $basePath): string
+    {
+        if ($basePath !== '' && ($path === $basePath || str_starts_with($path, $basePath . '/'))) {
+            $path = substr($path, strlen($basePath)) ?: '/';
+        }
+
+        if ($path === '') {
+            $path = '/';
+        }
+
+        if (!str_starts_with($path, '/')) {
+            $path = '/' . $path;
+        }
+
+        return $path;
     }
 }

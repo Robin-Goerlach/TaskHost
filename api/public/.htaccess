@@ -1,0 +1,19 @@
+Options -Indexes
+DirectoryIndex index.php
+RewriteEngine On
+
+# Optional classic-webroot profile for TaskHost.
+#
+# This file is only relevant when the web server points directly to public/,
+# for example in a future setup such as https://taskhost.sasd.de. In the
+# current shared-hosting target profile the productive entry point remains the
+# root-level index.php next to src/, vendor/ and storage/.
+
+# Serve existing files and directories directly.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Forward every other request to the front controller inside this webroot.
+# The application itself keeps the canonical API surface below /v1.
+RewriteRule ^ index.php [QSA,L]

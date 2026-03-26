@@ -1,3 +1,4 @@
+#!/usr/bin/env php
 <?php
 
 declare(strict_types=1);
@@ -14,8 +15,8 @@ $checks = [];
 $checks[] = checkValue('DB_DSN', Env::get('DB_DSN') !== null && Env::get('DB_DSN') !== '', 'DB_DSN ist gesetzt.');
 $checks[] = checkValue('MAIL_FROM_ADDRESS', filter_var(Env::get('MAIL_FROM_ADDRESS', 'no-reply@taskhost.local'), FILTER_VALIDATE_EMAIL) !== false, 'MAIL_FROM_ADDRESS ist gültig.');
 $checks[] = checkValue('MAIL_TRANSPORT', in_array(strtolower(Env::get('MAIL_TRANSPORT', 'file') ?? 'file'), ['file', 'native', 'null'], true), 'MAIL_TRANSPORT ist unterstützt.');
-$checks[] = checkDirectory('UPLOAD_DIR', Env::get('UPLOAD_DIR', $projectRoot . '/storage/uploads') ?? ($projectRoot . '/storage/uploads'));
-$checks[] = checkDirectory('MAIL_FILE_DIR', Env::get('MAIL_FILE_DIR', $projectRoot . '/storage/mail') ?? ($projectRoot . '/storage/mail'));
+$checks[] = checkDirectory('UPLOAD_DIR', Env::resolvePath(Env::get('UPLOAD_DIR'), 'storage/uploads'));
+$checks[] = checkDirectory('MAIL_FILE_DIR', Env::resolvePath(Env::get('MAIL_FILE_DIR'), 'storage/mail'));
 
 try {
     $pdo = ConnectionFactory::create();
@@ -36,11 +37,17 @@ foreach ($checks as $check) {
 
 exit($hasFailure ? 1 : 0);
 
+/**
+ * Creates one diagnostic result item.
+ */
 function checkValue(string $name, bool $ok, string $message): array
 {
     return ['name' => $name, 'ok' => $ok, 'message' => $message];
 }
 
+/**
+ * Verifies that one writable directory exists.
+ */
 function checkDirectory(string $name, string $path): array
 {
     if (!is_dir($path) && !mkdir($concurrentDirectory = $path, 0775, true) && !is_dir($concurrentDirectory)) {

@@ -1,5 +1,15 @@
 <?php
 
+/**
+ * TaskHost application bootstrap.
+ *
+ * This bootstrap is responsible for wiring the service container-like runtime
+ * structure used by the project. It also contains the canonical route
+ * registration and the deployment-aware base-path detection for shared hosting.
+ *
+ * @package TaskHost
+ */
+
 declare(strict_types=1);
 
 namespace TaskHost;
@@ -54,11 +64,19 @@ require_once __DIR__ . '/Infrastructure/Autoloader.php';
 
 final class Bootstrap
 {
+    /**
+     * Creates the application runtime used by the HTTP front controller.
+     */
     public static function createApplication(string $projectRoot): Application
     {
         return self::createRuntime($projectRoot)['app'];
     }
 
+    /**
+     * Creates the complete runtime state that is shared by HTTP and CLI entry points.
+     *
+     * @return array<string, mixed>
+     */
     public static function createRuntime(string $projectRoot): array
     {
         Env::load($projectRoot);
@@ -141,60 +159,37 @@ final class Bootstrap
 
         $router = new Router();
 
-        $router->add('POST', '/api/v1/auth/register', [$authController, 'register']);
-        $router->add('POST', '/api/v1/auth/login', [$authController, 'login']);
-        $router->add('POST', '/api/v1/auth/logout', [$authController, 'logout'], true);
-        $router->add('GET', '/api/v1/me', [$meController, 'show'], true);
+        // Canonical path for the path-based deployment model.
+        self::registerVersionedRoutes(
+            $router,
+            '/v1',
+            $authController,
+            $meController,
+            $folderController,
+            $taskListController,
+            $taskController,
+            $noteController,
+            $commentController,
+            $reminderController,
+            $attachmentController,
+            $viewController
+        );
 
-        $router->add('GET', '/api/v1/folders', [$folderController, 'index'], true);
-        $router->add('POST', '/api/v1/folders', [$folderController, 'store'], true);
-        $router->add('PATCH', '/api/v1/folders/{id}', [$folderController, 'update'], true);
-        $router->add('DELETE', '/api/v1/folders/{id}', [$folderController, 'destroy'], true);
-
-        $router->add('GET', '/api/v1/lists', [$taskListController, 'index'], true);
-        $router->add('POST', '/api/v1/lists', [$taskListController, 'store'], true);
-        $router->add('GET', '/api/v1/lists/{id}', [$taskListController, 'show'], true);
-        $router->add('PATCH', '/api/v1/lists/{id}', [$taskListController, 'update'], true);
-        $router->add('DELETE', '/api/v1/lists/{id}', [$taskListController, 'destroy'], true);
-        $router->add('GET', '/api/v1/lists/{id}/members', [$taskListController, 'members'], true);
-        $router->add('POST', '/api/v1/lists/{id}/share', [$taskListController, 'share'], true);
-        $router->add('GET', '/api/v1/lists/{id}/invitations', [$taskListController, 'invitations'], true);
-        $router->add('POST', '/api/v1/lists/{id}/invitations/{invitationId}/resend', [$taskListController, 'resendInvitation'], true);
-        $router->add('DELETE', '/api/v1/lists/{id}/members/{userId}', [$taskListController, 'removeMember'], true);
-        $router->add('POST', '/api/v1/invitations/{token}/accept', [$taskListController, 'acceptInvitation'], true);
-
-        $router->add('GET', '/api/v1/lists/{id}/tasks', [$taskController, 'indexForList'], true);
-        $router->add('POST', '/api/v1/lists/{id}/tasks', [$taskController, 'store'], true);
-        $router->add('GET', '/api/v1/tasks/{id}', [$taskController, 'show'], true);
-        $router->add('PATCH', '/api/v1/tasks/{id}', [$taskController, 'update'], true);
-        $router->add('DELETE', '/api/v1/tasks/{id}', [$taskController, 'destroy'], true);
-        $router->add('POST', '/api/v1/tasks/{id}/complete', [$taskController, 'complete'], true);
-        $router->add('POST', '/api/v1/tasks/{id}/restore', [$taskController, 'restore'], true);
-
-        $router->add('GET', '/api/v1/tasks/{id}/subtasks', [$taskController, 'subtasks'], true);
-        $router->add('POST', '/api/v1/tasks/{id}/subtasks', [$taskController, 'storeSubtask'], true);
-        $router->add('PATCH', '/api/v1/subtasks/{id}', [$taskController, 'updateSubtask'], true);
-        $router->add('DELETE', '/api/v1/subtasks/{id}', [$taskController, 'destroySubtask'], true);
-
-        $router->add('GET', '/api/v1/tasks/{id}/note', [$noteController, 'show'], true);
-        $router->add('PUT', '/api/v1/tasks/{id}/note', [$noteController, 'upsert'], true);
-
-        $router->add('GET', '/api/v1/tasks/{id}/comments', [$commentController, 'indexForTask'], true);
-        $router->add('POST', '/api/v1/tasks/{id}/comments', [$commentController, 'store'], true);
-        $router->add('DELETE', '/api/v1/comments/{id}', [$commentController, 'destroy'], true);
-
-        $router->add('GET', '/api/v1/tasks/{id}/reminders', [$reminderController, 'indexForTask'], true);
-        $router->add('POST', '/api/v1/tasks/{id}/reminders', [$reminderController, 'store'], true);
-        $router->add('PATCH', '/api/v1/reminders/{id}', [$reminderController, 'update'], true);
-        $router->add('DELETE', '/api/v1/reminders/{id}', [$reminderController, 'destroy'], true);
-
-        $router->add('GET', '/api/v1/tasks/{id}/attachments', [$attachmentController, 'indexForTask'], true);
-        $router->add('POST', '/api/v1/tasks/{id}/attachments', [$attachmentController, 'store'], true);
-        $router->add('GET', '/api/v1/attachments/{id}/download', [$attachmentController, 'download'], true);
-        $router->add('DELETE', '/api/v1/attachments/{id}', [$attachmentController, 'destroy'], true);
-
-        $router->add('GET', '/api/v1/views/{view}', [$viewController, 'show'], true);
-        $router->add('GET', '/api/v1/search', [$taskController, 'search'], true);
+        // Backward compatibility for older local setups that still use /api/v1.
+        self::registerVersionedRoutes(
+            $router,
+            '/api/v1',
+            $authController,
+            $meController,
+            $folderController,
+            $taskListController,
+            $taskController,
+            $noteController,
+            $commentController,
+            $reminderController,
+            $attachmentController,
+            $viewController
+        );
 
         $app = new Application(
             $router,
@@ -218,5 +213,107 @@ final class Bootstrap
                 'mail_templates' => $mailTemplateService,
             ],
         ];
+    }
+
+    /**
+     * Detects the externally visible service base path.
+     *
+     * Examples:
+     * - /taskhost/index.php => /taskhost
+     * - /index.php          => ''
+     */
+    public static function detectBasePath(): string
+    {
+        $override = trim((string) (Env::get('APP_BASE_PATH', '') ?? ''));
+        if ($override !== '') {
+            return '/' . trim($override, '/');
+        }
+
+        $scriptName = (string) ($_SERVER['SCRIPT_NAME'] ?? '');
+        if ($scriptName === '') {
+            return '';
+        }
+
+        $basePath = str_replace('\\', '/', dirname($scriptName));
+        if ($basePath === '/' || $basePath === '.') {
+            return '';
+        }
+
+        return '/' . trim($basePath, '/');
+    }
+
+    /**
+     * Registers one complete versioned API surface.
+     */
+    private static function registerVersionedRoutes(
+        Router $router,
+        string $prefix,
+        AuthController $authController,
+        MeController $meController,
+        FolderController $folderController,
+        TaskListController $taskListController,
+        TaskController $taskController,
+        NoteController $noteController,
+        CommentController $commentController,
+        ReminderController $reminderController,
+        AttachmentController $attachmentController,
+        ViewController $viewController
+    ): void {
+        $prefix = '/' . trim($prefix, '/');
+
+        $router->add('POST', $prefix . '/auth/register', [$authController, 'register']);
+        $router->add('POST', $prefix . '/auth/login', [$authController, 'login']);
+        $router->add('POST', $prefix . '/auth/logout', [$authController, 'logout'], true);
+        $router->add('GET', $prefix . '/me', [$meController, 'show'], true);
+
+        $router->add('GET', $prefix . '/folders', [$folderController, 'index'], true);
+        $router->add('POST', $prefix . '/folders', [$folderController, 'store'], true);
+        $router->add('PATCH', $prefix . '/folders/{id}', [$folderController, 'update'], true);
+        $router->add('DELETE', $prefix . '/folders/{id}', [$folderController, 'destroy'], true);
+
+        $router->add('GET', $prefix . '/lists', [$taskListController, 'index'], true);
+        $router->add('POST', $prefix . '/lists', [$taskListController, 'store'], true);
+        $router->add('GET', $prefix . '/lists/{id}', [$taskListController, 'show'], true);
+        $router->add('PATCH', $prefix . '/lists/{id}', [$taskListController, 'update'], true);
+        $router->add('DELETE', $prefix . '/lists/{id}', [$taskListController, 'destroy'], true);
+        $router->add('GET', $prefix . '/lists/{id}/members', [$taskListController, 'members'], true);
+        $router->add('POST', $prefix . '/lists/{id}/share', [$taskListController, 'share'], true);
+        $router->add('GET', $prefix . '/lists/{id}/invitations', [$taskListController, 'invitations'], true);
+        $router->add('POST', $prefix . '/lists/{id}/invitations/{invitationId}/resend', [$taskListController, 'resendInvitation'], true);
+        $router->add('DELETE', $prefix . '/lists/{id}/members/{userId}', [$taskListController, 'removeMember'], true);
+        $router->add('POST', $prefix . '/invitations/{token}/accept', [$taskListController, 'acceptInvitation'], true);
+
+        $router->add('GET', $prefix . '/lists/{id}/tasks', [$taskController, 'indexForList'], true);
+        $router->add('POST', $prefix . '/lists/{id}/tasks', [$taskController, 'store'], true);
+        $router->add('GET', $prefix . '/tasks/{id}', [$taskController, 'show'], true);
+        $router->add('PATCH', $prefix . '/tasks/{id}', [$taskController, 'update'], true);
+        $router->add('DELETE', $prefix . '/tasks/{id}', [$taskController, 'destroy'], true);
+        $router->add('POST', $prefix . '/tasks/{id}/complete', [$taskController, 'complete'], true);
+        $router->add('POST', $prefix . '/tasks/{id}/restore', [$taskController, 'restore'], true);
+
+        $router->add('GET', $prefix . '/tasks/{id}/subtasks', [$taskController, 'subtasks'], true);
+        $router->add('POST', $prefix . '/tasks/{id}/subtasks', [$taskController, 'storeSubtask'], true);
+        $router->add('PATCH', $prefix . '/subtasks/{id}', [$taskController, 'updateSubtask'], true);
+        $router->add('DELETE', $prefix . '/subtasks/{id}', [$taskController, 'destroySubtask'], true);
+
+        $router->add('GET', $prefix . '/tasks/{id}/note', [$noteController, 'show'], true);
+        $router->add('PUT', $prefix . '/tasks/{id}/note', [$noteController, 'upsert'], true);
+
+        $router->add('GET', $prefix . '/tasks/{id}/comments', [$commentController, 'indexForTask'], true);
+        $router->add('POST', $prefix . '/tasks/{id}/comments', [$commentController, 'store'], true);
+        $router->add('DELETE', $prefix . '/comments/{id}', [$commentController, 'destroy'], true);
+
+        $router->add('GET', $prefix . '/tasks/{id}/reminders', [$reminderController, 'indexForTask'], true);
+        $router->add('POST', $prefix . '/tasks/{id}/reminders', [$reminderController, 'store'], true);
+        $router->add('PATCH', $prefix . '/reminders/{id}', [$reminderController, 'update'], true);
+        $router->add('DELETE', $prefix . '/reminders/{id}', [$reminderController, 'destroy'], true);
+
+        $router->add('GET', $prefix . '/tasks/{id}/attachments', [$attachmentController, 'indexForTask'], true);
+        $router->add('POST', $prefix . '/tasks/{id}/attachments', [$attachmentController, 'store'], true);
+        $router->add('GET', $prefix . '/attachments/{id}/download', [$attachmentController, 'download'], true);
+        $router->add('DELETE', $prefix . '/attachments/{id}', [$attachmentController, 'destroy'], true);
+
+        $router->add('GET', $prefix . '/views/{view}', [$viewController, 'show'], true);
+        $router->add('GET', $prefix . '/search', [$taskController, 'search'], true);
     }
 }
