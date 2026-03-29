@@ -1,7 +1,14 @@
-# TaskHost PHP MVC
+# TaskHost PHP MVC MySQL
 
 TaskHost ist eine kleine, direkt nutzbare Aufgabenverwaltung im Stil eines klassischen Wunderlist-Workflows.
-Die Anwendung wurde bewusst **ohne Framework** gebaut, damit du die Architektur gut nachvollziehen und später leicht erweitern kannst.
+Diese Variante nutzt **MySQL** und bleibt trotzdem bewusst **framework-frei**, damit du die Architektur gut verstehen und erweitern kannst.
+
+## Wichtiger Hinweis zur Konfiguration
+
+Du fragtest nach einer Umschaltung in `.enc`.
+In PHP-Projekten wird dafür normalerweise **`.env`** verwendet, nicht `.enc`.
+
+Die MySQL-Zugangsdaten trägst du also in eine Datei namens **`.env`** ein.
 
 ## Funktionen
 
@@ -11,24 +18,67 @@ Die Anwendung wurde bewusst **ohne Framework** gebaut, damit du die Architektur 
 - Priorität, Fälligkeitsdatum und Notizen
 - Dashboard mit Übersicht
 - MVC-Struktur mit Routing, Controllern, Repositories und Views
-- SQLite-Datenbank für schnellen Einstieg
+- MySQL über PDO
 - CSRF-Schutz, Passwort-Hashing und Eigentümer-Prüfungen
 
 ## Voraussetzungen
 
 - PHP **8.1** oder neuer
+- PHP-Erweiterung **pdo_mysql**
+- MySQL oder MariaDB
 
-Weitere PHP-Datenbanktreiber sind **nicht notwendig**, weil die Anwendung ihre Daten standardmäßig in einer JSON-Datei speichert.
+## 1. `.env` anlegen
 
-## Schnellstart
-
-### 1. Projekt entpacken / öffnen
+Kopiere zuerst die Beispieldatei:
 
 ```bash
-cd taskhost-php-mvc
+cp .env.example .env
 ```
 
-### 2. Lokalen Entwicklungsserver starten
+Passe danach die Werte in `.env` an, zum Beispiel:
+
+```env
+APP_NAME=TaskHost
+APP_ENV=development
+APP_DEBUG=true
+APP_URL=http://127.0.0.1:8000
+
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=taskhost
+DB_USERNAME=taskhost_user
+DB_PASSWORD=dein_passwort
+```
+
+## 2. Datenbank anlegen
+
+Beispiel in MySQL:
+
+```sql
+CREATE DATABASE taskhost CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'taskhost_user'@'localhost' IDENTIFIED BY 'dein_passwort';
+GRANT ALL PRIVILEGES ON taskhost.* TO 'taskhost_user'@'localhost';
+FLUSH PRIVILEGES;
+```
+
+## 3. Tabellen anlegen
+
+Die Anwendung bringt ein SQL-Schema und ein kleines Migrationsskript mit:
+
+```bash
+php migrate.php
+```
+
+Alternativ kannst du auch `database/schema.sql` direkt in MySQL importieren.
+
+## 4. Entwicklungsserver starten
+
+```bash
+./start.sh
+```
+
+oder direkt:
 
 ```bash
 php -S 127.0.0.1:8000 -t public public/router.php
@@ -40,53 +90,27 @@ Danach im Browser öffnen:
 http://127.0.0.1:8000
 ```
 
-## Wichtige Hinweise
-
-- Beim ersten Start erzeugt die Anwendung automatisch die Datendatei unter `var/data/storage.json`.
-- Das Verzeichnis `var/data` muss für den Webserver beschreibbar sein.
-- Für Apache ist eine `.htaccess` im `public`-Verzeichnis enthalten.
-
 ## Projektstruktur
 
 ```text
 app/
   Bootstrap.php          # Verdrahtung der Anwendung
+  Config/Env.php         # .env-Loader
   Controllers/           # HTTP-Logik
-  Core/                  # Infrastruktur: Router, DB, Views, Security
-  Repositories/          # Datenbankzugriff
+  Core/                  # Infrastruktur: Router, Views, Security
+  Database/Connection.php# PDO-Aufbau für MySQL
+  Repositories/          # Datenbankzugriff über PDO
   Services/              # Fachlogik
   Support/               # Hilfsfunktionen
   Views/                 # PHP-Templates
 public/
   index.php              # Einstiegspunkt
   router.php             # Router für PHP Built-in Server
-  assets/css/app.css     # Styling
-var/data/
-  storage.json           # Wird automatisch erzeugt
+database/
+  schema.sql             # Tabellenstruktur
+migrate.php              # legt Tabellen an
+.env.example             # Beispiel-Konfiguration
 ```
-
-## Standard-Zugänge
-
-Es werden **keine festen Standardzugänge** mitgeliefert.
-Bitte registriere beim ersten Start einfach deinen ersten Benutzer.
-
-## Beispiel-Workflow
-
-1. Registrieren
-2. Anmelden
-3. Neue Liste anlegen, z. B. `Privat` oder `Arbeit`
-4. Liste öffnen
-5. Aufgaben mit Priorität und Termin anlegen
-6. Aufgaben abhaken, bearbeiten oder löschen
-
-## Erweiterungsideen
-
-- Tags
-- Erinnerungen per Mail
-- Teilen von Listen mit anderen Benutzern
-- JSON-API zusätzlich zur Web-Oberfläche
-- Drag & Drop Sortierung
-- Archiv / Papierkorb
 
 ## Sicherheit / Architektur
 
@@ -95,12 +119,25 @@ Die Anwendung enthält bereits einige wichtige Grundlagen:
 - Passwortspeicherung nur gehasht (`password_hash`)
 - Prepared Statements via PDO
 - CSRF-Token für schreibende Formulare
-- Benutzer dürfen nur ihre eigenen Listen und Aufgaben sehen/bearbeiten
+- Benutzer dürfen nur ihre eigenen Listen und Aufgaben sehen oder bearbeiten
 - HTML-Ausgabe wird escaped
 
-## Apache Beispiel
+## Reset für lokale Entwicklung
 
-Der DocumentRoot sollte auf `public/` zeigen.
+Wenn du die Testdaten komplett löschen willst:
+
+```bash
+./reset-data.sh
+```
+
+## Erweiterungsideen
+
+- Listen teilen mit anderen Benutzern
+- Tags
+- Erinnerungen per Mail
+- REST-API ergänzen
+- Archiv / Papierkorb
+- Drag & Drop Sortierung
 
 ## Lizenz
 

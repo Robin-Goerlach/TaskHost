@@ -4,146 +4,133 @@ declare(strict_types=1);
 
 namespace App\Repositories;
 
-use App\Core\Storage;
+use PDO;
 
 class TaskRepository
 {
-    public function __construct(private Storage $storage)
+    public function __construct(private PDO $db)
     {
     }
 
     public function create(int $listId, array $data): int
     {
-        return $this->storage->transaction(function (array &$db) use ($listId, $data): int {
-            $id = (int) $db['meta']['task_auto_id'];
-            $db['meta']['task_auto_id']++;
-            $now = date('c');
+        $statement = $this->db->prepare(
+            'INSERT INTO tasks (list_id, title, notes, priority, due_date, is_completed, created_at, updated_at)
+             VALUES (:list_id, :title, :notes, :priority, :due_date, 0, NOW(), NOW())'
+        );
 
-            $db['tasks'][] = [
-                'id' => $id,
-                'list_id' => $listId,
-                'title' => $data['title'],
-                'notes' => $data['notes'] !== '' ? $data['notes'] : null,
-                'priority' => $data['priority'],
-                'due_date' => $data['due_date'],
-                'is_completed' => 0,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ];
+        $statement->execute([
+            'list_id' => $listId,
+            'title' => $data['title'],
+            'notes' => $data['notes'] !== '' ? $data['notes'] : null,
+            'priority' => $data['priority'],
+            'due_date' => $data['due_date'],
+        ]);
 
-            $this->touchListInMemory($db, $listId);
-            return $id;
-        });
+        $this->touchList($listId);
+        return (int) $this->db->lastInsertId();
     }
 
     public function findByListId(int $listId): array
     {
-        return $this->storage->transaction(function (array &$db) use ($listId): array {
-            $tasks = array_values(array_filter(
-                $db['tasks'],
-                static fn (array $task): bool => (int) $task['list_id'] === $listId
-            ));
+        $statement = $this->db->prepare(
+            'SELECT *
+             FROM tasks
+             WHERE list_id = :list_id
+             ORDER BY is_completed ASC,
+                      COALESCE(due_date, "9999-12-31") ASC,
+                      id DESC'
+        );
 
-            usort($tasks, static function (array $a, array $b): int {
-                if ((int) $a['is_completed'] !== (int) $b['is_completed']) {
-                    return (int) $a['is_completed'] <=> (int) $b['is_completed'];
-                }
-
-                $aDue = $a['due_date'] ?? '9999-12-31';
-                $bDue = $b['due_date'] ?? '9999-12-31';
-
-                if ($aDue !== $bDue) {
-                    return strcmp((string) $aDue, (string) $bDue);
-                }
-
-                return (int) $b['id'] <=> (int) $a['id'];
-            });
-
-            return $tasks;
-        });
+        $statement->execute(['list_id' => $listId]);
+        return $statement->fetchAll() ?: [];
     }
 
     public function findByIdForUser(int $taskId, int $userId): ?array
     {
-        return $this->storage->transaction(function (array &$db) use ($taskId, $userId): ?array {
-            foreach ($db['tasks'] as $task) {
-                if ((int) $task['id'] !== $taskId) {
-                    continue;
-                }
+        $statement = $this->db->prepare(
+            'SELECT t.*
+             FROM tasks t
+             INNER JOIN task_lists tl ON tl.id = t.list_id
+             WHERE t.id = :task_id AND tl.user_id = :user_id
+             LIMIT 1'
+        );
 
-                foreach ($db['task_lists'] as $list) {
-                    if ((int) $list['id'] === (int) $task['list_id'] && (int) $list['user_id'] === $userId) {
-                        return $task;
-                    }
-                }
-            }
+        $statement->execute([
+            'task_id' => $taskId,
+            'user_id' => $userId,
+        ]);
 
-            return null;
-        });
+        $task = $statement->fetch();
+        return is_array($task) ? $task : null;
     }
 
     public function toggleCompletion(int $taskId, int $isCompleted): void
     {
-        $this->storage->transaction(function (array &$db) use ($taskId, $isCompleted): void {
-            foreach ($db['tasks'] as &$task) {
-                if ((int) $task['id'] === $taskId) {
-                    $task['is_completed'] = $isCompleted;
-                    $task['updated_at'] = date('c');
-                    $this->touchListInMemory($db, (int) $task['list_id']);
-                    break;
-                }
-            }
-            unset($task);
-        });
+        $statement = $this->db->prepare(
+            'UPDATE tasks SET is_completed = :is_completed, updated_at = NOW() WHERE id = :id'
+        );
+        $statement->execute([
+            'is_completed' => $isCompleted,
+            'id' => $taskId,
+        ]);
+
+        $listId = $this->findListIdByTaskId($taskId);
+        if ($listId !== null) {
+            $this->touchList($listId);
+        }
     }
 
     public function update(int $taskId, array $data): void
     {
-        $this->storage->transaction(function (array &$db) use ($taskId, $data): void {
-            foreach ($db['tasks'] as &$task) {
-                if ((int) $task['id'] === $taskId) {
-                    $task['title'] = $data['title'];
-                    $task['notes'] = $data['notes'] !== '' ? $data['notes'] : null;
-                    $task['priority'] = $data['priority'];
-                    $task['due_date'] = $data['due_date'];
-                    $task['updated_at'] = date('c');
-                    $this->touchListInMemory($db, (int) $task['list_id']);
-                    break;
-                }
-            }
-            unset($task);
-        });
+        $statement = $this->db->prepare(
+            'UPDATE tasks
+             SET title = :title,
+                 notes = :notes,
+                 priority = :priority,
+                 due_date = :due_date,
+                 updated_at = NOW()
+             WHERE id = :id'
+        );
+
+        $statement->execute([
+            'title' => $data['title'],
+            'notes' => $data['notes'] !== '' ? $data['notes'] : null,
+            'priority' => $data['priority'],
+            'due_date' => $data['due_date'],
+            'id' => $taskId,
+        ]);
+
+        $listId = $this->findListIdByTaskId($taskId);
+        if ($listId !== null) {
+            $this->touchList($listId);
+        }
     }
 
     public function delete(int $taskId): void
     {
-        $this->storage->transaction(function (array &$db) use ($taskId): void {
-            $listId = null;
-            $db['tasks'] = array_values(array_filter(
-                $db['tasks'],
-                static function (array $task) use ($taskId, &$listId): bool {
-                    $matches = (int) $task['id'] === $taskId;
-                    if ($matches) {
-                        $listId = (int) $task['list_id'];
-                    }
-                    return !$matches;
-                }
-            ));
+        $listId = $this->findListIdByTaskId($taskId);
 
-            if ($listId !== null) {
-                $this->touchListInMemory($db, $listId);
-            }
-        });
+        $statement = $this->db->prepare('DELETE FROM tasks WHERE id = :id');
+        $statement->execute(['id' => $taskId]);
+
+        if ($listId !== null) {
+            $this->touchList($listId);
+        }
     }
 
-    private function touchListInMemory(array &$db, int $listId): void
+    private function findListIdByTaskId(int $taskId): ?int
     {
-        foreach ($db['task_lists'] as &$list) {
-            if ((int) $list['id'] === $listId) {
-                $list['updated_at'] = date('c');
-                break;
-            }
-        }
-        unset($list);
+        $statement = $this->db->prepare('SELECT list_id FROM tasks WHERE id = :id LIMIT 1');
+        $statement->execute(['id' => $taskId]);
+        $listId = $statement->fetchColumn();
+
+        return $listId !== false ? (int) $listId : null;
+    }
+
+    private function touchList(int $listId): void
+    {
+        $statement = $this->db->prepare('UPDATE task_lists SET updated_at = NOW() WHERE id = :id');
+        $statement->execute(['id' => $listId]);
     }
 }

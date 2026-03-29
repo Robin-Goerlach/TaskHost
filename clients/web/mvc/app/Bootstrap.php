@@ -11,25 +11,14 @@ use App\Core\Auth;
 use App\Core\Csrf;
 use App\Core\Flash;
 use App\Core\Router;
-use App\Core\Storage;
 use App\Core\View;
+use App\Database\Connection;
 use App\Repositories\TaskListRepository;
 use App\Repositories\TaskRepository;
 use App\Repositories\UserRepository;
 use App\Services\AuthService;
 
-error_reporting(E_ALL);
-ini_set('display_errors', '1');
-
-session_start();
-
-define('BASE_PATH', dirname(__DIR__));
-define('APP_PATH', BASE_PATH . '/app');
-define('VIEW_PATH', APP_PATH . '/Views');
-define('VAR_PATH', BASE_PATH . '/var');
-define('DATA_PATH', VAR_PATH . '/data');
-
-require_once APP_PATH . '/Support/helpers.php';
+require_once __DIR__ . '/Support/helpers.php';
 
 spl_autoload_register(static function (string $class): void {
     $prefix = 'App\\';
@@ -39,21 +28,30 @@ spl_autoload_register(static function (string $class): void {
     }
 
     $relative = substr($class, strlen($prefix));
-    $file = APP_PATH . '/' . str_replace('\\', '/', $relative) . '.php';
+    $file = __DIR__ . '/' . str_replace('\\', '/', $relative) . '.php';
 
     if (is_file($file)) {
         require_once $file;
     }
 });
 
-if (!is_dir(DATA_PATH)) {
-    mkdir(DATA_PATH, 0777, true);
-}
+App\Config\Env::load(dirname(__DIR__) . '/.env');
 
-$storage = new Storage(DATA_PATH . '/storage.json');
-$userRepository = new UserRepository($storage);
-$taskListRepository = new TaskListRepository($storage);
-$taskRepository = new TaskRepository($storage);
+error_reporting(E_ALL);
+ini_set('display_errors', App\Config\Env::bool('APP_DEBUG', true) ? '1' : '0');
+
+session_start();
+
+define('BASE_PATH', dirname(__DIR__));
+define('APP_PATH', BASE_PATH . '/app');
+define('VIEW_PATH', APP_PATH . '/Views');
+define('VAR_PATH', BASE_PATH . '/var');
+define('DATA_PATH', VAR_PATH . '/data');
+
+$pdo = Connection::make();
+$userRepository = new UserRepository($pdo);
+$taskListRepository = new TaskListRepository($pdo);
+$taskRepository = new TaskRepository($pdo);
 
 $auth = new Auth($userRepository);
 $authService = new AuthService($userRepository, $auth);
@@ -62,7 +60,7 @@ $flash = new Flash();
 $csrf = new Csrf();
 
 $app = new App(
-    $storage,
+    $pdo,
     $auth,
     $view,
     $flash,

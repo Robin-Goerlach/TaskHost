@@ -8,6 +8,7 @@ use App\Repositories\TaskListRepository;
 use App\Repositories\TaskRepository;
 use App\Repositories\UserRepository;
 use App\Services\AuthService;
+use PDO;
 
 /**
  * Einfacher Service-Container für dieses Projekt.
@@ -15,7 +16,7 @@ use App\Services\AuthService;
 class App
 {
     public function __construct(
-        public Storage $storage,
+        public PDO $db,
         public Auth $auth,
         public View $view,
         public Flash $flash,

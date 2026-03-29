@@ -4,119 +4,89 @@ declare(strict_types=1);
 
 namespace App\Repositories;
 
-use App\Core\Storage;
+use PDO;
 
 class TaskListRepository
 {
-    public function __construct(private Storage $storage)
+    public function __construct(private PDO $db)
     {
     }
 
     public function create(int $userId, string $title): int
     {
-        return $this->storage->transaction(function (array &$db) use ($userId, $title): int {
-            $id = (int) $db['meta']['task_list_auto_id'];
-            $db['meta']['task_list_auto_id']++;
-            $now = date('c');
+        $statement = $this->db->prepare(
+            'INSERT INTO task_lists (user_id, title, created_at, updated_at) VALUES (:user_id, :title, NOW(), NOW())'
+        );
 
-            $db['task_lists'][] = [
-                'id' => $id,
-                'user_id' => $userId,
-                'title' => $title,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ];
+        $statement->execute([
+            'user_id' => $userId,
+            'title' => $title,
+        ]);
 
-            return $id;
-        });
+        return (int) $this->db->lastInsertId();
     }
 
     public function findAllByUserIdWithStats(int $userId): array
     {
-        return $this->storage->transaction(function (array &$db) use ($userId): array {
-            $lists = array_values(array_filter(
-                $db['task_lists'],
-                static fn (array $list): bool => (int) $list['user_id'] === $userId
-            ));
+        $statement = $this->db->prepare(
+            'SELECT tl.*, 
+                    COUNT(t.id) AS task_count,
+                    SUM(CASE WHEN t.is_completed = 1 THEN 1 ELSE 0 END) AS completed_count
+             FROM task_lists tl
+             LEFT JOIN tasks t ON t.list_id = tl.id
+             WHERE tl.user_id = :user_id
+             GROUP BY tl.id
+             ORDER BY tl.updated_at DESC'
+        );
 
-            foreach ($lists as &$list) {
-                $taskCount = 0;
-                $completedCount = 0;
+        $statement->execute(['user_id' => $userId]);
+        $rows = $statement->fetchAll();
 
-                foreach ($db['tasks'] as $task) {
-                    if ((int) $task['list_id'] === (int) $list['id']) {
-                        $taskCount++;
-                        if ((int) $task['is_completed'] === 1) {
-                            $completedCount++;
-                        }
-                    }
-                }
-
-                $list['task_count'] = $taskCount;
-                $list['completed_count'] = $completedCount;
-            }
-            unset($list);
-
-            usort($lists, static function (array $a, array $b): int {
-                return strcmp((string) $b['updated_at'], (string) $a['updated_at']);
-            });
-
-            return $lists;
-        });
+        return array_map(static function (array $row): array {
+            $row['task_count'] = (int) ($row['task_count'] ?? 0);
+            $row['completed_count'] = (int) ($row['completed_count'] ?? 0);
+            return $row;
+        }, $rows ?: []);
     }
 
     public function findByIdAndUserId(int $listId, int $userId): ?array
     {
-        return $this->storage->transaction(function (array &$db) use ($listId, $userId): ?array {
-            foreach ($db['task_lists'] as $list) {
-                if ((int) $list['id'] === $listId && (int) $list['user_id'] === $userId) {
-                    return $list;
-                }
-            }
+        $statement = $this->db->prepare(
+            'SELECT * FROM task_lists WHERE id = :id AND user_id = :user_id LIMIT 1'
+        );
 
-            return null;
-        });
+        $statement->execute([
+            'id' => $listId,
+            'user_id' => $userId,
+        ]);
+
+        $list = $statement->fetch();
+        return is_array($list) ? $list : null;
     }
 
     public function rename(int $listId, int $userId, string $title): bool
     {
-        return $this->storage->transaction(function (array &$db) use ($listId, $userId, $title): bool {
-            foreach ($db['task_lists'] as &$list) {
-                if ((int) $list['id'] === $listId && (int) $list['user_id'] === $userId) {
-                    $list['title'] = $title;
-                    $list['updated_at'] = date('c');
-                    return true;
-                }
-            }
-            unset($list);
+        $statement = $this->db->prepare(
+            'UPDATE task_lists SET title = :title, updated_at = NOW() WHERE id = :id AND user_id = :user_id'
+        );
 
-            return false;
-        });
+        $statement->execute([
+            'title' => $title,
+            'id' => $listId,
+            'user_id' => $userId,
+        ]);
+
+        return $statement->rowCount() > 0;
     }
 
     public function delete(int $listId, int $userId): bool
     {
-        return $this->storage->transaction(function (array &$db) use ($listId, $userId): bool {
-            $found = false;
-            $db['task_lists'] = array_values(array_filter(
-                $db['task_lists'],
-                function (array $list) use ($listId, $userId, &$found): bool {
-                    $matches = (int) $list['id'] === $listId && (int) $list['user_id'] === $userId;
-                    if ($matches) {
-                        $found = true;
-                    }
-                    return !$matches;
-                }
-            ));
+        $statement = $this->db->prepare('DELETE FROM task_lists WHERE id = :id AND user_id = :user_id');
+        $statement->execute([
+            'id' => $listId,
+            'user_id' => $userId,
+        ]);
 
-            if ($found) {
-                $db['tasks'] = array_values(array_filter(
-                    $db['tasks'],
-                    static fn (array $task): bool => (int) $task['list_id'] !== $listId
-                ));
-            }
-
-            return $found;
-        });
+        return $statement->rowCount() > 0;
     }
 }
