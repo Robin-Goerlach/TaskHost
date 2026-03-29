@@ -1,0 +1,7 @@
+RewriteEngine On
+
+# Wenn eine echte Datei oder ein echtes Verzeichnis angefragt wird,
+# soll Apache es direkt ausliefern.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [QSA,L]

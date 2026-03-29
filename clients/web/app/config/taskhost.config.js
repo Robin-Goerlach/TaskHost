@@ -6,6 +6,6 @@
 //
 // The client appends /v1 internally, so do not include /v1 here.
 window.TASKHOST_CONFIG = {
-  apiBaseUrl: 'http://127.0.0.1:8080',
+  apiBaseUrl: 'http://api.sasd.de/taskhost',
   appName: 'TaskHost',
 };
